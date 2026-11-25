@@ -1,0 +1,26 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Indentation & Spacing
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+MaxEmptyLinesToKeep: 1
+
+# Braces (K&R style; change to 'Allman' if you prefer braces on a new line)
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Pointers & Alignment (Classic C style: int *ptr)
+PointerAlignment: Right
+AlignAfterOpenBracket: Align
+AlignOperands: true
+
+# Includes & Macros
+SortIncludes: Never
+IndentPPDirectives: BeforeHash
+...
