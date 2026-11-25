@@ -1,0 +1,74 @@
+name: Bug Report
+description: Report a bug, crash, rendering glitch, or build failure in SolsticeSFG
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please provide enough detail so we can reproduce it cleanly in C99.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clear description of what went wrong and what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal Reproducible Example (C99)
+      description: Paste a minimal snippet or describe the steps in `tests/` that trigger the issue.
+      render: c
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build_mode
+    attributes:
+      label: Build Mode
+      options:
+        - Modular build (include/ + src/*.c)
+        - Amalgamated single-header (dist/solsticesfg.h)
+        - Platform backend (backends/)
+        - Tooling / Amalgamator (tools/)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Target OS / Environment
+      options:
+        - Linux (x86_64 / ARM64)
+        - Windows (MinGW / MSVC)
+        - EquantOS / Hobby OS / Freestanding (no libc)
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: compiler
+    attributes:
+      label: Compiler & Version
+      description: Which compiler and flags were used?
+      placeholder: "e.g. gcc 14.2.0 (-std=c99 -Wall -Wextra -Werror) / MSVC 19.40"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Compiler Output / Sanitizer / Logs
+      description: Paste compiler errors, ASan/UBSan output, or Valgrind logs if applicable.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checks
+      options:
+        - label: I confirmed this still happens on the latest `dev` branch.
+          required: true
