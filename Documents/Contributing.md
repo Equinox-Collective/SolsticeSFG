@@ -24,4 +24,3 @@ Write a clear description for your pull request. State what was changed, why you
 One pull request covers one bug fix, one feature or one cleanup task. Keep diffs focused. Do not drop massive PRs that rewrite the entire program at once.
 
 ## 6. License
-All contributions fall under the GNU General Public License v2 (GPL-2.0). By submitting code, you license your work under GPL-2.0.
