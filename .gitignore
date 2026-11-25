@@ -1,0 +1,63 @@
+# Build directories
+build/
+bin/
+obj/
+out/
+cmake-build-*/
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Debug & Symbols
+*.pdb
+*.ilk
+*.idb
+*.dSYM/
+*.su
+*.idb
+*.elf
+*.map
+
+# Core dumps
+core
+core.*
+
+# Editors & IDEs
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+compile_commands.json
+.cache/
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
