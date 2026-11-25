@@ -1,0 +1,30 @@
+name: Feature Request
+description: Propose a new drawing primitive, optimization, backend, or API improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary & Motivation
+      description: What problem does this solve? How will it be used (e.g., DE/UI, software rendering, OS display server)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: api_design
+    attributes:
+      label: Proposed C API / Behavior
+      description: Sketch out function signatures, structs, or pixel behavior if you have an idea in mind.
+      render: c
+
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Architectural Invariants Check
+      description: Please verify your proposal aligns with SolsticeSFG core rules (see `Documents/PROMPT.md`).
+      options:
+        - label: Compatible with pure C99 and zero mandatory external dependencies.
+          required: true
+        - label: Core logic remains framebuffer-first and OS-agnostic (unless proposing a `backends/` module).
+          required: true
