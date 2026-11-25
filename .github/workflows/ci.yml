@@ -1,0 +1,81 @@
+name: SolsticeSFG CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.cc }} / ${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+        mode: [debug, release]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Clang (if needed)
+        if: matrix.cc == 'clang'
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Build & Run Tests (Modular + Amalgamated)
+        run: make CC=${{ matrix.cc }} MODE=${{ matrix.mode }} V=1 all test
+
+  sanitizers-and-freestanding:
+    name: Sanitizers & Freestanding (OS-dev check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Run ASan + UBSan Tests
+        run: make CC=clang V=1 test-san
+
+      - name: Verify Freestanding Compilation (-ffreestanding -nostdlib)
+        run: make CC=gcc V=1 test-freestanding
+
+  windows:
+    name: Windows (MinGW-w64 GCC)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 (UCRT64 GCC + Make)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            make
+
+      - name: Build & Run Tests (Debug)
+        run: make MODE=debug V=1 all test
+
+      - name: Build & Run Tests (Release)
+        run: make MODE=release V=1 all test
+
+  format-check:
+    name: Code Style (.clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+
+      - name: Verify Formatting
+        run: make format-check
