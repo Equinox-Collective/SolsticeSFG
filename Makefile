@@ -20,13 +20,14 @@ ifeq ($(OS),Windows_NT)
     EXE        := .exe
     SO_EXT     := .dll
     LIB_PREFIX :=
-    # Detect if Make is running under cmd.exe instead of sh.exe (Git Bash/MSYS2)
-    ifneq (,$(findstring cmd,$(SHELL)))
+    # Probe actual shell behavior: cmd.exe expands %OS% to Windows_NT; sh prints %OS%
+    SHELL_PROBE := $(strip $(shell echo %OS%))
+    ifeq ($(SHELL_PROBE),Windows_NT)
         IS_CMD := 1
     endif
 else
-    UNAME_S := $(shell uname -s 2>/dev/null || echo Unknown)
-    EXE     :=
+    UNAME_S    := $(shell uname -s 2>/dev/null || echo Unknown)
+    EXE        :=
     LIB_PREFIX := lib
     ifeq ($(UNAME_S),Darwin)
         IS_MACOS := 1
@@ -37,19 +38,22 @@ else
     endif
 endif
 
-# Portable filesystem & logging helpers (works in sh AND Windows cmd.exe)
+# Portable filesystem, execution & logging helpers (works in sh AND Windows cmd.exe)
 ifeq ($(IS_CMD),1)
-    MKDIR_P = if not exist "$(subst /,\,$(1))" mkdir "$(subst /,\,$(1))"
-    RM_RF   = if exist "$(subst /,\,$(1))" rmdir /s /q "$(subst /,\,$(1))"
-    RM_F    = if exist "$(subst /,\,$(1))" del /f /q "$(subst /,\,$(1))"
-    CP_F    = copy /y "$(subst /,\,$(1))" "$(subst /,\,$(2))" >nul
-    LOG     = @echo   $(1)  $(2)
+    WIN_PATH = $(subst /,\,$(patsubst %/,%,$(1)))
+    MKDIR_P  = if not exist "$(call WIN_PATH,$(1))" mkdir "$(call WIN_PATH,$(1))"
+    RM_RF    = if exist "$(call WIN_PATH,$(1))" rmdir /s /q "$(call WIN_PATH,$(1))"
+    RM_F     = if exist "$(call WIN_PATH,$(1))" del /f /q "$(call WIN_PATH,$(1))"
+    CP_F     = copy /y "$(call WIN_PATH,$(1))" "$(call WIN_PATH,$(2))" >nul
+    RUN_PATH = $(subst /,\,$(1))
+    LOG      = @echo   [$(1)] $(2)
 else
-    MKDIR_P = mkdir -p $(1)
-    RM_RF   = rm -rf $(1)
-    RM_F    = rm -f $(1)
-    CP_F    = cp -f $(1) $(2)
-    LOG     = @printf "  %-10s %s\n" "$(1)" "$(2)"
+    MKDIR_P  = mkdir -p $(1)
+    RM_RF    = rm -rf $(1)
+    RM_F     = rm -f $(1)
+    CP_F     = cp -f $(1) $(2)
+    RUN_PATH = $(1)
+    LOG      = @printf "  %-10s %s\n" "$(1)" "$(2)"
 endif
 
 # ------------------------------------------------------------------------------
@@ -130,7 +134,9 @@ TEST_MOD_RUNS := $(addprefix run-mod-,$(TEST_NAMES))
 TEST_AMG_RUNS := $(addprefix run-amg-,$(TEST_NAMES))
 
 EX_BINS       := $(patsubst $(EX_DIR)/%.c,$(EX_BIN_DIR)/%$(EXE),$(EX_SRCS))
+BENCH_NAMES   := $(patsubst $(BENCH_DIR)/%.c,%,$(BENCH_SRCS))
 BENCH_BINS    := $(patsubst $(BENCH_DIR)/%.c,$(BENCH_BIN_DIR)/%$(EXE),$(BENCH_SRCS))
+BENCH_RUNS    := $(addprefix run-bench-,$(BENCH_NAMES))
 
 ALL_FMT_FILES := $(wildcard $(INC_DIR)/*.h $(SRC_DIR)/*.c $(SRC_DIR)/*.h \
                  $(BACKEND_DIR)/*.c $(BACKEND_DIR)/*.h $(TOOLS_DIR)/*.c \
@@ -197,7 +203,7 @@ AMALG_TEST_CFLAGS := $(CSTD) $(WARN_FLAGS) $(MODE_CFLAGS) $(EXTRA_CFLAGS) \
 .PHONY: all lib static shared amalgamate test test-modular test-amalgamated \
         test-san test-freestanding valgrind examples bench format format-check \
         lint install uninstall clean distclean info help \
-        $(TEST_MOD_RUNS) $(TEST_AMG_RUNS)
+        $(TEST_MOD_RUNS) $(TEST_AMG_RUNS) $(BENCH_RUNS)
 
 all: static amalgamate
 
@@ -260,7 +266,7 @@ $(AMALG_BIN): $(AMALG_SRC)
 $(DIST_HEADER): $(AMALG_BIN) $(INC_FILES) $(SRC_HEADERS) $(SRC_FILES)
 	$(Q)$(call MKDIR_P,$(DIST_DIR))
 	$(call LOG,AMALG,$@)
-	$(Q)$(AMALG_BIN) $(INC_DIR) $(SRC_DIR) $@
+	$(Q)$(call RUN_PATH,$(AMALG_BIN)) $(INC_DIR) $(SRC_DIR) $@
 endif
 
 # ------------------------------------------------------------------------------
@@ -280,29 +286,27 @@ test-modular: $(STATIC_LIB) $(TEST_MOD_RUNS)
 
 test-amalgamated: $(DIST_HEADER) $(TEST_AMG_RUNS)
 	$(call LOG,PASS,All amalgamated single-header tests passed! [MODE=$(MODE)])
-endif
 
-# Build modular test binaries
-$(TEST_BIN_DIR)/mod_%$(EXE): $(TEST_DIR)/%.c $(STATIC_LIB)
+# Static pattern rules (guaranteed to execute even for .PHONY targets)
+$(TEST_MOD_BINS): $(TEST_BIN_DIR)/mod_%$(EXE): $(TEST_DIR)/%.c $(STATIC_LIB)
 	$(Q)$(call MKDIR_P,$(TEST_BIN_DIR))
 	$(call LOG,CC-TEST,$<)
 	$(Q)$(CC) $(CPPFLAGS) -I$(TEST_DIR) $(CFLAGS) -DSOL_BUILD_MODULAR \
 		$< $(STATIC_LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
-# Build amalgamated test binaries (uses ONLY dist/solsticesfg.h)
-$(TEST_BIN_DIR)/amg_%$(EXE): $(TEST_DIR)/%.c $(DIST_HEADER)
+$(TEST_AMG_BINS): $(TEST_BIN_DIR)/amg_%$(EXE): $(TEST_DIR)/%.c $(DIST_HEADER)
 	$(Q)$(call MKDIR_P,$(TEST_BIN_DIR))
 	$(call LOG,CC-AMG,$<)
 	$(Q)$(CC) $(AMALG_TEST_CFLAGS) $< $(LDFLAGS) $(LDLIBS) -o $@
 
-# Dynamic per-test execution targets (OS-agnostic & parallel-safe)
-run-mod-%: $(TEST_BIN_DIR)/mod_%$(EXE)
+$(TEST_MOD_RUNS): run-mod-%: $(TEST_BIN_DIR)/mod_%$(EXE)
 	$(call LOG,RUN-MOD,$<)
-	$(Q)$<
+	$(Q)$(call RUN_PATH,$<)
 
-run-amg-%: $(TEST_BIN_DIR)/amg_%$(EXE)
+$(TEST_AMG_RUNS): run-amg-%: $(TEST_BIN_DIR)/amg_%$(EXE)
 	$(call LOG,RUN-AMG,$<)
-	$(Q)$<
+	$(Q)$(call RUN_PATH,$<)
+endif
 
 # Convenience shortcuts for Sanitizer & Freestanding checks
 test-san:
@@ -330,24 +334,33 @@ examples:
 	$(call LOG,INFO,No examples found in $(EX_DIR)/ yet.)
 else
 examples: $(STATIC_LIB) $(EX_BINS)
-endif
 
-$(EX_BIN_DIR)/%$(EXE): $(EX_DIR)/%.c $(STATIC_LIB)
+$(EX_BINS): $(EX_BIN_DIR)/%$(EXE): $(EX_DIR)/%.c $(STATIC_LIB)
 	$(Q)$(call MKDIR_P,$(EX_BIN_DIR))
 	$(call LOG,CC-EX,$<)
 	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) $< $(STATIC_LIB) $(LDFLAGS) $(LDLIBS) -o $@
+endif
 
 ifeq ($(strip $(BENCH_SRCS)),)
 bench:
 	$(call LOG,INFO,No benchmarks found in $(BENCH_DIR)/ yet.)
 else
 bench:
-	$(Q)$(MAKE) MODE=release $(BENCH_BINS)
-	$(Q)for b in $(BENCH_BINS); do \
-		echo "  BENCH      $$b"; \
-		$$b; \
-	done
+	$(Q)$(MAKE) MODE=release $(BENCH_RUNS)
+
+$(BENCH_RUNS): run-bench-%: $(BENCH_BIN_DIR)/%$(EXE)
+	$(call LOG,BENCH,$<)
+	$(Q)$(call RUN_PATH,$<)
+
+$(BENCH_BINS): $(BENCH_BIN_DIR)/%$(EXE): $(BENCH_DIR)/%.c $(STATIC_LIB)
+	$(Q)$(call MKDIR_P,$(BENCH_BIN_DIR))
+	$(call LOG,CC-BNCH,$<)
+	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) $< $(STATIC_LIB) $(LDFLAGS) $(LDLIBS) -o $@
 endif
+
+run-bench-%: $(BENCH_BIN_DIR)/%$(EXE)
+	$(call LOG,BENCH,$<)
+	$(Q)$(call RUN_PATH,$<)
 
 $(BENCH_BIN_DIR)/%$(EXE): $(BENCH_DIR)/%.c $(STATIC_LIB)
 	$(Q)$(call MKDIR_P,$(BENCH_BIN_DIR))
@@ -441,11 +454,11 @@ help:
 	@echo   make info              - Print detected environment and active flags
 	@echo.
 	@echo Variables:
-	@echo   MODE=debug^|release^|sanitize^|freestanding  (default: debug)
-	@echo   CC=gcc^|clang^|...                          (default: gcc)
-	@echo   CROSS_COMPILE=x86_64-w64-mingw32-         (optional prefix)
-	@echo   STRICT=1^|0                                (extra warnings, default: 1)
-	@echo   V=0^|1                                     (verbose commands, default: 0)
+	@echo   MODE=debug / release / sanitize / freestanding (default: debug)
+	@echo   CC=gcc / clang / ...                           (default: gcc)
+	@echo   CROSS_COMPILE=x86_64-w64-mingw32-              (optional prefix)
+	@echo   STRICT=1 / 0                                   (extra warnings, default: 1)
+	@echo   V=0 / 1                                        (verbose commands, default: 0)
 
 # Include auto-generated header dependency files
 -include $(LIB_DEPS)
