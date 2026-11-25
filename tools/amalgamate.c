@@ -7,7 +7,7 @@ static const char *const k_public_headers[] = {"solsticesfg.h"};
 
 static const char *const k_internal_headers[] = {"sol_internal.h"};
 
-static const char *const k_source_files[] = {"sol_core.c"};
+static const char *const k_source_files[] = {"sol_core.c", "sol_blend.c", "sol_draw.c"};
 
 static int is_local_sol_include(const char *line) {
     const char *p = line;
