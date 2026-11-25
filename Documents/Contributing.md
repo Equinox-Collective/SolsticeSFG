@@ -24,3 +24,4 @@ Write a clear description for your pull request. State what was changed, why you
 One pull request covers one bug fix, one feature or one cleanup task. Keep diffs focused. Do not drop massive PRs that rewrite the entire program at once.
 
 ## 6. License
+zlib OR MIT
