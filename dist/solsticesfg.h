@@ -1535,8 +1535,7 @@ void *sol_arena_alloc_aligned(sol_arena_t *arena, size_t size, size_t align) {
 }
 
 void *sol_arena_alloc(sol_arena_t *arena, size_t size) {
-    size_t default_align = sizeof(void *) >= 8u ? sizeof(void *) : 8u;
-    return sol_arena_alloc_aligned(arena, size, default_align);
+    return sol_arena_alloc_aligned(arena, size, 8u);
 }
 
 void *sol_arena_calloc(sol_arena_t *arena, size_t count, size_t size) {

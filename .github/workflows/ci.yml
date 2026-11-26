@@ -76,6 +76,9 @@ jobs:
   windows-msvc:
     name: Windows (MSVC cl.exe)
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: cmd
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -86,22 +89,22 @@ jobs:
       - name: Build Amalgamator & Generate Single-Header
         run: |
           if not exist build\msvc mkdir build\msvc
-          cl /nologo /W4 /WX /O2 tools\amalgamate.c /Fe:build\msvc\amalgamate.exe
+          cl /nologo /std:c11 /W4 /WX /O2 /D_CRT_SECURE_NO_WARNINGS tools\amalgamate.c /Fe:build\msvc\amalgamate.exe
           build\msvc\amalgamate.exe include src dist\solsticesfg.h
 
       - name: Build & Run Modular Tests (MSVC /W4 /WX)
         run: |
-          cl /nologo /W4 /WX /O2 /Iinclude /Isrc /Itests /DSOL_BUILD_MODULAR tests\test_core.c src\sol_core.c src\sol_blend.c src\sol_draw.c /Fe:build\msvc\mod_test_core.exe
-          cl /nologo /W4 /WX /O2 /Iinclude /Isrc /Itests /DSOL_BUILD_MODULAR tests\test_draw.c src\sol_core.c src\sol_blend.c src\sol_draw.c /Fe:build\msvc\mod_test_draw.exe
-          build\msvc\mod_test_core.exe
-          build\msvc\mod_test_draw.exe
+          for %%f in (tests\test_*.c) do (
+            cl /nologo /std:c11 /W4 /WX /O2 /Iinclude /Isrc /Itests /DSOL_BUILD_MODULAR %%f src\*.c /Fe:build\msvc\mod_%%~nf.exe || exit /b 1
+            build\msvc\mod_%%~nf.exe || exit /b 1
+          )
 
       - name: Build & Run Amalgamated Tests (MSVC /W4 /WX)
         run: |
-          cl /nologo /W4 /WX /O2 /Idist /Itests /DSOL_BUILD_AMALGAMATED tests\test_core.c /Fe:build\msvc\amg_test_core.exe
-          cl /nologo /W4 /WX /O2 /Idist /Itests /DSOL_BUILD_AMALGAMATED tests\test_draw.c /Fe:build\msvc\amg_test_draw.exe
-          build\msvc\amg_test_core.exe
-          build\msvc\amg_test_draw.exe
+          for %%f in (tests\test_*.c) do (
+            cl /nologo /std:c11 /W4 /WX /O2 /Idist /Itests /DSOL_BUILD_AMALGAMATED %%f /Fe:build\msvc\amg_%%~nf.exe || exit /b 1
+            build\msvc\amg_%%~nf.exe || exit /b 1
+          )
 
   macos:
     name: macOS (Clang / ${{ matrix.mode }})
