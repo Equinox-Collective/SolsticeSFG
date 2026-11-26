@@ -204,7 +204,7 @@ AMALG_TEST_CFLAGS := $(CSTD) $(WARN_FLAGS) $(MODE_CFLAGS) $(EXTRA_CFLAGS) \
 .PHONY: all lib static shared amalgamate test test-modular test-amalgamated \
         test-san test-freestanding test-no-stdio fuzz-smoke valgrind examples \
         bench format format-check lint install uninstall clean distclean info help \
-        $(TEST_MOD_RUNS) $(TEST_AMG_RUNS) $(BENCH_RUNS)
+        $(TEST_MOD_RUNS) $(TEST_AMG_RUNS) $(BENCH_RUNS) $(FUZZ_RUNS)
 
 all: static amalgamate
 
@@ -275,6 +275,8 @@ endif
 # ------------------------------------------------------------------------------
 test: test-modular test-amalgamated
 
+TEST_FS_OBJS := $(patsubst $(TEST_DIR)/%.c,$(BUILD_ROOT)/freestanding/tests/%.o,$(TEST_SRCS))
+
 ifeq ($(strip $(TEST_SRCS)),)
 test-modular:
 	$(call LOG,INFO,No tests found in $(TEST_DIR)/test_*.c yet.)
@@ -307,6 +309,12 @@ $(TEST_MOD_RUNS): run-mod-%: $(TEST_BIN_DIR)/mod_%$(EXE)
 $(TEST_AMG_RUNS): run-amg-%: $(TEST_BIN_DIR)/amg_%$(EXE)
 	$(call LOG,RUN-AMG,$<)
 	$(Q)$(call RUN_PATH,$<)
+
+$(TEST_FS_OBJS): $(BUILD_ROOT)/freestanding/tests/%.o: $(TEST_DIR)/%.c
+	$(Q)$(call MKDIR_P,$(BUILD_ROOT)/freestanding/tests)
+	$(call LOG,CC-FS,$<)
+	$(Q)$(CC) $(CPPFLAGS) -I$(TEST_DIR) $(CSTD) $(WARN_FLAGS) -O2 -ffreestanding -nostdlib \
+		-DSOL_FREESTANDING -DSOL_NO_STDIO -c $< -o $@
 endif
 
 # Convenience shortcuts for Sanitizer, No-Stdio, Freestanding & Fuzz Smoke checks
@@ -318,29 +326,30 @@ test-no-stdio:
 	$(call LOG,PASS,SOL_NO_STDIO test harness check passed!)
 
 test-freestanding:
-	$(Q)$(MAKE) MODE=freestanding static
-	$(Q)$(call MKDIR_P,$(BUILD_ROOT)/freestanding/tests)
-	$(Q)for f in $(TEST_SRCS); do \
-		$(CC) $(CPPFLAGS) -I$(TEST_DIR) $(CSTD) $(WARN_FLAGS) -O2 -ffreestanding -nostdlib \
-			-DSOL_FREESTANDING -DSOL_NO_STDIO -c $$f \
-			-o $(BUILD_ROOT)/freestanding/tests/$$(basename $$f .c).o; \
-	done
+	$(Q)$(MAKE) MODE=freestanding static $(TEST_FS_OBJS)
 	$(call LOG,PASS,Freestanding OS-kernel compilation check passed!)
 
-FUZZ_SRCS := $(wildcard $(TEST_DIR)/fuzz/fuzz_*.c)
-FUZZ_BINS := $(patsubst $(TEST_DIR)/fuzz/%.c,$(BUILD_DIR)/fuzz/%$(EXE),$(FUZZ_SRCS))
+FUZZ_SRCS  := $(wildcard $(TEST_DIR)/fuzz/fuzz_*.c)
+FUZZ_NAMES := $(patsubst $(TEST_DIR)/fuzz/%.c,%,$(FUZZ_SRCS))
+FUZZ_BINS  := $(addprefix $(BUILD_DIR)/fuzz/,$(addsuffix $(EXE),$(FUZZ_NAMES)))
+FUZZ_RUNS  := $(addprefix run-fuzz-,$(FUZZ_NAMES))
 
-fuzz-smoke: $(STATIC_LIB) $(FUZZ_BINS)
-	$(Q)for bin in $(FUZZ_BINS); do \
-		echo "  FUZZ-SMOKE $$bin"; \
-		$(call RUN_PATH,$$bin); \
-	done
+ifeq ($(strip $(FUZZ_SRCS)),)
+fuzz-smoke:
+	$(call LOG,INFO,No fuzz targets found in $(TEST_DIR)/fuzz/ yet.)
+else
+fuzz-smoke: $(STATIC_LIB) $(FUZZ_RUNS)
 	$(call LOG,PASS,All fuzz smoke targets passed!)
 
-$(BUILD_DIR)/fuzz/%$(EXE): $(TEST_DIR)/fuzz/%.c $(STATIC_LIB)
+$(FUZZ_RUNS): run-fuzz-%: $(BUILD_DIR)/fuzz/%$(EXE)
+	$(call LOG,FUZZ-SMK,$<)
+	$(Q)$(call RUN_PATH,$<)
+
+$(FUZZ_BINS): $(BUILD_DIR)/fuzz/%$(EXE): $(TEST_DIR)/fuzz/%.c $(STATIC_LIB)
 	$(Q)$(call MKDIR_P,$(BUILD_DIR)/fuzz)
 	$(call LOG,CC-FUZZ,$<)
 	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -DSOL_FUZZ_STANDALONE $< $(STATIC_LIB) $(LDFLAGS) $(LDLIBS) -o $@
+endif
 
 valgrind: $(TEST_MOD_BINS)
 ifeq ($(strip $(TEST_MOD_BINS)),)

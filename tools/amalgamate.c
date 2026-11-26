@@ -107,7 +107,7 @@ static int is_local_sol_include(const char *line) {
     while (*p != '\0' && isspace((unsigned char)*p)) {
         p++;
     }
-    return strncmp(p, "\"sol", 4) == 0;
+    return strncmp(p, "\"sol", 4) == 0 || strncmp(p, "\"../include/sol", 15) == 0;
 }
 
 static int append_file(FILE *out, const char *dir, const char *filename, int strip_local_inc) {
