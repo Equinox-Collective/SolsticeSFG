@@ -28,6 +28,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef SOL_FREESTANDING
+    #if !defined(SOL_MALLOC) || !defined(SOL_REALLOC) || !defined(SOL_FREE)
+        #include <stdlib.h>
+    #endif
+    #if !defined(SOL_MEMCPY) || !defined(SOL_MEMSET) || !defined(SOL_MEMMOVE) ||                   \
+        !defined(SOL_MEMCMP)
+        #include <string.h>
+    #endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -65,6 +75,21 @@ typedef uint32_t sol_color_t;
 #define SOL_COLOR_G(c) ((uint8_t)(((c) >> 8) & 0xFFu))
 #define SOL_COLOR_B(c) ((uint8_t)((c) & 0xFFu))
 
+/* Built-in Color Constants */
+#define SOL_COLOR_TRANSPARENT ((sol_color_t)0x00000000u)
+#define SOL_COLOR_BLACK ((sol_color_t)0xFF000000u)
+#define SOL_COLOR_WHITE ((sol_color_t)0xFFFFFFFFu)
+#define SOL_COLOR_RED ((sol_color_t)0xFFFF0000u)
+#define SOL_COLOR_GREEN ((sol_color_t)0xFF00FF00u)
+#define SOL_COLOR_BLUE ((sol_color_t)0xFF0000FFu)
+#define SOL_COLOR_YELLOW ((sol_color_t)0xFFFFFF00u)
+#define SOL_COLOR_CYAN ((sol_color_t)0xFF00FFFFu)
+#define SOL_COLOR_MAGENTA ((sol_color_t)0xFFFF00FFu)
+#define SOL_COLOR_ORANGE ((sol_color_t)0xFFFF8800u)
+#define SOL_COLOR_GRAY ((sol_color_t)0xFF808080u)
+#define SOL_COLOR_DARK_GRAY ((sol_color_t)0xFF303030u)
+#define SOL_COLOR_LIGHT_GRAY ((sol_color_t)0xFFC0C0C0u)
+
 typedef enum sol_status {
     SOL_OK = 0,
     SOL_ERR_INVALID_ARG = -1,
@@ -77,6 +102,9 @@ typedef struct sol_rect {
     int32_t w;
     int32_t h;
 } sol_rect_t;
+
+#define SOL_RECT(x, y, w, h) ((sol_rect_t){(x), (y), (w), (h)})
+#define SOL_SQUARE(x, y, s) ((sol_rect_t){(x), (y), (s), (s)})
 
 typedef struct sol_surface {
     uint32_t *pixels;
@@ -97,10 +125,155 @@ SOL_API void sol_surface_reset_clip(sol_surface_t *surf);
 /* Geometry Helpers */
 SOL_API sol_rect_t sol_rect_intersect(sol_rect_t a, sol_rect_t b);
 
+/* Color & Blending */
+SOL_API sol_color_t sol_color_with_alpha(sol_color_t color, uint8_t alpha);
+SOL_API sol_color_t sol_color_lerp(sol_color_t a, sol_color_t b, uint8_t t);
+SOL_API sol_color_t sol_color_blend(sol_color_t dst, sol_color_t src);
+
 /* Core Pixel Operations */
 SOL_API void sol_clear(sol_surface_t *surf, sol_color_t color);
 SOL_API void sol_put_pixel(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color);
+SOL_API void sol_blend_pixel(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color);
 SOL_API sol_color_t sol_get_pixel(const sol_surface_t *surf, int32_t x, int32_t y);
+
+/* Lines */
+SOL_API void sol_draw_hline(sol_surface_t *surf, int32_t x, int32_t y, int32_t len,
+                            sol_color_t color);
+SOL_API void sol_draw_vline(sol_surface_t *surf, int32_t x, int32_t y, int32_t len,
+                            sol_color_t color);
+SOL_API void sol_draw_line(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                           sol_color_t color);
+
+/* Rectangles, Squares & Gradients */
+SOL_API void sol_fill_rect(sol_surface_t *surf, sol_rect_t rect, sol_color_t color);
+SOL_API void sol_draw_rect(sol_surface_t *surf, sol_rect_t rect, sol_color_t color);
+SOL_API void sol_draw_rect_thick(sol_surface_t *surf, sol_rect_t rect, int32_t thickness,
+                                 sol_color_t color);
+SOL_API void sol_fill_rect_gradient_v(sol_surface_t *surf, sol_rect_t rect, sol_color_t top,
+                                      sol_color_t bottom);
+SOL_API void sol_fill_rect_gradient_h(sol_surface_t *surf, sol_rect_t rect, sol_color_t left,
+                                      sol_color_t right);
+
+/* Rounded Rectangles */
+SOL_API void sol_fill_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                                   sol_color_t color);
+SOL_API void sol_draw_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                                   sol_color_t color);
+
+/* Circles & Ellipses */
+SOL_API void sol_fill_circle(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                             sol_color_t color);
+SOL_API void sol_draw_circle(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                             sol_color_t color);
+SOL_API void sol_fill_ellipse(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rx, int32_t ry,
+                              sol_color_t color);
+SOL_API void sol_draw_ellipse(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rx, int32_t ry,
+                              sol_color_t color);
+
+/* Triangles */
+SOL_API void sol_draw_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                               int32_t x2, int32_t y2, sol_color_t color);
+SOL_API void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                               int32_t x2, int32_t y2, sol_color_t color);
+
+/* ============================================================================
+ * Phase 1.2: Freestanding Memory & Arena Allocator
+ * ============================================================================ */
+
+/* Pure C99 zero-libc memory fallbacks (used automatically under SOL_FREESTANDING) */
+SOL_API void *sol__memcpy(void *dst, const void *src, size_t n);
+SOL_API void *sol__memset(void *dst, int val, size_t n);
+SOL_API void *sol__memmove(void *dst, const void *src, size_t n);
+SOL_API int sol__memcmp(const void *a, const void *b, size_t n);
+
+#ifdef SOL_FREESTANDING
+    #ifndef SOL_MALLOC
+        #define SOL_MALLOC(sz) ((void)(sz), (void *)0)
+    #endif
+    #ifndef SOL_REALLOC
+        #define SOL_REALLOC(ptr, sz) ((void)(ptr), (void)(sz), (void *)0)
+    #endif
+    #ifndef SOL_FREE
+        #define SOL_FREE(ptr) ((void)(ptr))
+    #endif
+    #ifndef SOL_MEMCPY
+        #define SOL_MEMCPY(dst, src, n) sol__memcpy((dst), (src), (n))
+    #endif
+    #ifndef SOL_MEMSET
+        #define SOL_MEMSET(dst, val, n) sol__memset((dst), (val), (n))
+    #endif
+    #ifndef SOL_MEMMOVE
+        #define SOL_MEMMOVE(dst, src, n) sol__memmove((dst), (src), (n))
+    #endif
+    #ifndef SOL_MEMCMP
+        #define SOL_MEMCMP(a, b, n) sol__memcmp((a), (b), (n))
+    #endif
+#else
+    #ifndef SOL_MALLOC
+        #define SOL_MALLOC(sz) malloc(sz)
+    #endif
+    #ifndef SOL_REALLOC
+        #define SOL_REALLOC(ptr, sz) realloc((ptr), (sz))
+    #endif
+    #ifndef SOL_FREE
+        #define SOL_FREE(ptr) free(ptr)
+    #endif
+    #ifndef SOL_MEMCPY
+        #define SOL_MEMCPY(dst, src, n) memcpy((dst), (src), (n))
+    #endif
+    #ifndef SOL_MEMSET
+        #define SOL_MEMSET(dst, val, n) memset((dst), (val), (n))
+    #endif
+    #ifndef SOL_MEMMOVE
+        #define SOL_MEMMOVE(dst, src, n) memmove((dst), (src), (n))
+    #endif
+    #ifndef SOL_MEMCMP
+        #define SOL_MEMCMP(a, b, n) memcmp((a), (b), (n))
+    #endif
+#endif
+
+/* Caller-backed Arena / Bump Allocator (zero fragmentation, instant reset) */
+typedef struct sol_arena {
+    uint8_t *base;
+    size_t capacity;
+    size_t offset;
+} sol_arena_t;
+
+SOL_API sol_status_t sol_arena_init(sol_arena_t *arena, void *buffer, size_t capacity);
+SOL_API void *sol_arena_alloc(sol_arena_t *arena, size_t size);
+SOL_API void *sol_arena_alloc_aligned(sol_arena_t *arena, size_t size, size_t align);
+SOL_API void *sol_arena_calloc(sol_arena_t *arena, size_t count, size_t size);
+SOL_API void sol_arena_reset(sol_arena_t *arena);
+SOL_API size_t sol_arena_remaining(const sol_arena_t *arena);
+SOL_API size_t sol_arena_mark(const sol_arena_t *arena);
+SOL_API void sol_arena_rewind(sol_arena_t *arena, size_t mark);
+
+/* ============================================================================
+ * Phase 1.3: Multi-Format Framebuffer Conversion
+ * ============================================================================ */
+
+typedef enum sol_pixel_format {
+    SOL_FMT_ARGB8888 = 0, /* Canonical internal format: 0xAARRGGBB */
+    SOL_FMT_XRGB8888,     /* Linux DRM/KMS, X11, Windows DIB */
+    SOL_FMT_RGBA8888,     /* OpenGL / Wayland / macOS */
+    SOL_FMT_BGRA8888,     /* Little-endian byte order on DRM/Wayland/Win32 */
+    SOL_FMT_ABGR8888,     /* 0xAABBGGRR */
+    SOL_FMT_RGB888,       /* 24-bit packed: R, G, B */
+    SOL_FMT_BGR888,       /* 24-bit packed: B, G, R */
+    SOL_FMT_RGB565,       /* 16-bit embedded / VESA BIOS */
+    SOL_FMT_BGR565,       /* 16-bit BGR565 */
+    SOL_FMT_A8,           /* 8-bit alpha mask (extracts A) */
+    SOL_FMT_GRAY8         /* 8-bit grayscale luminance (BT.601) */
+} sol_pixel_format_t;
+
+SOL_API int32_t sol_format_bpp(sol_pixel_format_t fmt);
+SOL_API sol_status_t sol_convert_row(void *dst, sol_pixel_format_t dst_fmt,
+                                     const uint32_t *src_argb, int32_t width);
+SOL_API sol_status_t sol_convert_row_dithered(void *dst, sol_pixel_format_t dst_fmt,
+                                              const uint32_t *src_argb, int32_t width, int32_t y);
+SOL_API sol_status_t sol_present_to_buffer(void *dst_pixels, int32_t dst_stride_bytes,
+                                           sol_pixel_format_t dst_fmt, const sol_surface_t *src,
+                                           bool dither);
 
 #ifdef __cplusplus
 }
@@ -125,6 +298,75 @@ SOL_API sol_color_t sol_get_pixel(const sol_surface_t *surf, int32_t x, int32_t 
 
 #define SOL_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define SOL_MAX(a, b) ((a) > (b) ? (a) : (b))
+
+static inline uint32_t sol__div255(uint32_t x) {
+    return (x + 128u + ((x + 128u) >> 8)) >> 8;
+}
+
+static inline sol_color_t sol__blend_argb_fast(sol_color_t dst, sol_color_t src) {
+    uint32_t sa = SOL_COLOR_A(src);
+    if (sa == 0u) {
+        return dst;
+    }
+    if (sa == 255u) {
+        return src;
+    }
+
+    uint32_t inv_a = 255u - sa;
+    uint32_t da = SOL_COLOR_A(dst);
+
+    uint32_t r = sol__div255((uint32_t)SOL_COLOR_R(src) * sa + (uint32_t)SOL_COLOR_R(dst) * inv_a);
+    uint32_t g = sol__div255((uint32_t)SOL_COLOR_G(src) * sa + (uint32_t)SOL_COLOR_G(dst) * inv_a);
+    uint32_t b = sol__div255((uint32_t)SOL_COLOR_B(src) * sa + (uint32_t)SOL_COLOR_B(dst) * inv_a);
+    uint32_t a = sa + sol__div255(da * inv_a);
+
+    return SOL_ARGB(a, r, g, b);
+}
+
+/* Overflow-safe integer math helpers */
+static inline bool sol__add_overflow_i32(int32_t a, int32_t b, int32_t *out) {
+    int64_t sum = (int64_t)a + (int64_t)b;
+    if (sum < (int64_t)INT32_MIN || sum > (int64_t)INT32_MAX) {
+        return true;
+    }
+    *out = (int32_t)sum;
+    return false;
+}
+
+static inline bool sol__mul_overflow_sz(size_t a, size_t b, size_t *out) {
+    if (a != 0u && b > ((size_t)-1) / a) {
+        return true;
+    }
+    *out = a * b;
+    return false;
+}
+
+/* Fixed-point 16.16 and 24.8 math helpers */
+typedef int32_t sol_fx16_t;
+typedef int32_t sol_fx24_8_t;
+
+#define SOL_FX16_ONE ((sol_fx16_t)(1 << 16))
+#define SOL_FX16_FROM_INT(x) ((sol_fx16_t)((int32_t)(x) * SOL_FX16_ONE))
+#define SOL_FX16_TO_INT(x) ((int32_t)((x) >> 16))
+
+static inline sol_fx16_t sol__fx16_mul(sol_fx16_t a, sol_fx16_t b) {
+    return (sol_fx16_t)(((int64_t)a * (int64_t)b) >> 16);
+}
+
+static inline sol_fx16_t sol__fx16_div(sol_fx16_t a, sol_fx16_t b) {
+    if (b == 0) {
+        return 0;
+    }
+    return (sol_fx16_t)((((int64_t)a) << 16) / (int64_t)b);
+}
+
+#define SOL_FX24_8_ONE ((sol_fx24_8_t)(1 << 8))
+#define SOL_FX24_8_FROM_INT(x) ((sol_fx24_8_t)((int32_t)(x) * SOL_FX24_8_ONE))
+#define SOL_FX24_8_TO_INT(x) ((int32_t)((x) >> 8))
+
+static inline sol_fx24_8_t sol__fx24_8_mul(sol_fx24_8_t a, sol_fx24_8_t b) {
+    return (sol_fx24_8_t)(((int64_t)a * (int64_t)b) >> 8);
+}
 
 #endif /* SOL_INTERNAL_H */
 /* === END sol_internal.h === */
@@ -253,6 +495,1345 @@ sol_color_t sol_get_pixel(const sol_surface_t *surf, int32_t x, int32_t y) {
     return surf->pixels[(size_t)y * (size_t)surf->stride + (size_t)x];
 }
 /* === END sol_core.c === */
+
+/* === BEGIN sol_blend.c === */
+
+sol_color_t sol_color_with_alpha(sol_color_t color, uint8_t alpha) {
+    return (color & 0x00FFFFFFu) | (((sol_color_t)alpha) << 24);
+}
+
+sol_color_t sol_color_lerp(sol_color_t a, sol_color_t b, uint8_t t) {
+    uint32_t wt = (uint32_t)t;
+    uint32_t inv_t = 255u - wt;
+
+    uint32_t out_a = sol__div255((uint32_t)SOL_COLOR_A(a) * inv_t + (uint32_t)SOL_COLOR_A(b) * wt);
+    uint32_t out_r = sol__div255((uint32_t)SOL_COLOR_R(a) * inv_t + (uint32_t)SOL_COLOR_R(b) * wt);
+    uint32_t out_g = sol__div255((uint32_t)SOL_COLOR_G(a) * inv_t + (uint32_t)SOL_COLOR_G(b) * wt);
+    uint32_t out_b = sol__div255((uint32_t)SOL_COLOR_B(a) * inv_t + (uint32_t)SOL_COLOR_B(b) * wt);
+
+    return SOL_ARGB(out_a, out_r, out_g, out_b);
+}
+
+sol_color_t sol_color_blend(sol_color_t dst, sol_color_t src) {
+    return sol__blend_argb_fast(dst, src);
+}
+
+void sol_blend_pixel(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color) {
+    size_t idx;
+
+    if (surf == NULL || surf->pixels == NULL) {
+        return;
+    }
+    if (x < surf->clip.x || y < surf->clip.y || x >= surf->clip.x + surf->clip.w ||
+        y >= surf->clip.y + surf->clip.h) {
+        return;
+    }
+
+    idx = (size_t)y * (size_t)surf->stride + (size_t)x;
+    surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], color);
+}
+/* === END sol_blend.c === */
+
+/* === BEGIN sol_draw.c === */
+
+/* Unchecked span plotter: caller guarantees y and [x0, x1] are inside surf->clip */
+SOL_PRIVATE void sol__draw_hline_clipped(sol_surface_t *surf, int32_t x0, int32_t x1, int32_t y,
+                                         sol_color_t color) {
+    uint32_t *dst;
+    int32_t count;
+    int32_t i;
+    uint32_t sa = SOL_COLOR_A(color);
+
+    if (sa == 0u || x0 > x1) {
+        return;
+    }
+
+    dst = surf->pixels + (size_t)y * (size_t)surf->stride + (size_t)x0;
+    count = x1 - x0 + 1;
+
+    if (sa == 255u) {
+        for (i = 0; i < count; ++i) {
+            dst[i] = color;
+        }
+    } else {
+        for (i = 0; i < count; ++i) {
+            dst[i] = sol__blend_argb_fast(dst[i], color);
+        }
+    }
+}
+
+SOL_PRIVATE void sol__draw_hline_span(sol_surface_t *surf, int32_t x0, int32_t x1, int32_t y,
+                                      sol_color_t color) {
+    int32_t clip_x1;
+    int32_t clip_y1;
+
+    if (surf == NULL || surf->pixels == NULL) {
+        return;
+    }
+    if (surf->clip.w <= 0 || surf->clip.h <= 0) {
+        return;
+    }
+
+    if (x0 > x1) {
+        int32_t tmp = x0;
+        x0 = x1;
+        x1 = tmp;
+    }
+
+    clip_x1 = surf->clip.x + surf->clip.w - 1;
+    clip_y1 = surf->clip.y + surf->clip.h - 1;
+
+    if (y < surf->clip.y || y > clip_y1 || x1 < surf->clip.x || x0 > clip_x1) {
+        return;
+    }
+
+    if (x0 < surf->clip.x) {
+        x0 = surf->clip.x;
+    }
+    if (x1 > clip_x1) {
+        x1 = clip_x1;
+    }
+
+    sol__draw_hline_clipped(surf, x0, x1, y, color);
+}
+
+SOL_PRIVATE void sol__draw_plot(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color) {
+    if (x < surf->clip.x || y < surf->clip.y || x >= surf->clip.x + surf->clip.w ||
+        y >= surf->clip.y + surf->clip.h) {
+        return;
+    }
+
+    size_t idx = (size_t)y * (size_t)surf->stride + (size_t)x;
+    surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], color);
+}
+
+void sol_draw_hline(sol_surface_t *surf, int32_t x, int32_t y, int32_t len, sol_color_t color) {
+    if (len <= 0) {
+        return;
+    }
+    sol__draw_hline_span(surf, x, (int32_t)((int64_t)x + (int64_t)len - 1), y, color);
+}
+
+void sol_draw_vline(sol_surface_t *surf, int32_t x, int32_t y, int32_t len, sol_color_t color) {
+    int32_t y0;
+    int32_t y1;
+    int32_t clip_x1;
+    int32_t clip_y1;
+    int32_t row;
+    uint32_t sa;
+
+    if (surf == NULL || surf->pixels == NULL || len <= 0) {
+        return;
+    }
+    if (surf->clip.w <= 0 || surf->clip.h <= 0) {
+        return;
+    }
+
+    sa = SOL_COLOR_A(color);
+    if (sa == 0u) {
+        return;
+    }
+
+    clip_x1 = surf->clip.x + surf->clip.w - 1;
+    clip_y1 = surf->clip.y + surf->clip.h - 1;
+    if (x < surf->clip.x || x > clip_x1) {
+        return;
+    }
+
+    y0 = y;
+    y1 = (int32_t)SOL_MIN((int64_t)y + (int64_t)len - 1, (int64_t)clip_y1);
+    if (y0 < surf->clip.y) {
+        y0 = surf->clip.y;
+    }
+    if (y0 > y1) {
+        return;
+    }
+
+    if (sa == 255u) {
+        for (row = y0; row <= y1; ++row) {
+            surf->pixels[(size_t)row * (size_t)surf->stride + (size_t)x] = color;
+        }
+    } else {
+        for (row = y0; row <= y1; ++row) {
+            size_t idx = (size_t)row * (size_t)surf->stride + (size_t)x;
+            surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], color);
+        }
+    }
+}
+
+/* Cohen-Sutherland outcodes for line clipping */
+#define SOL__OC_INSIDE 0
+#define SOL__OC_LEFT 1
+#define SOL__OC_RIGHT 2
+#define SOL__OC_BOTTOM 4
+#define SOL__OC_TOP 8
+
+SOL_PRIVATE int sol__outcode(int64_t x, int64_t y, int64_t xmin, int64_t ymin, int64_t xmax,
+                             int64_t ymax) {
+    int code = SOL__OC_INSIDE;
+    if (x < xmin) {
+        code |= SOL__OC_LEFT;
+    } else if (x > xmax) {
+        code |= SOL__OC_RIGHT;
+    }
+    if (y < ymin) {
+        code |= SOL__OC_TOP;
+    } else if (y > ymax) {
+        code |= SOL__OC_BOTTOM;
+    }
+    return code;
+}
+
+void sol_draw_line(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                   sol_color_t color) {
+    int64_t xmin;
+    int64_t ymin;
+    int64_t xmax;
+    int64_t ymax;
+    int64_t lx0 = x0;
+    int64_t ly0 = y0;
+    int64_t lx1 = x1;
+    int64_t ly1 = y1;
+    int oc0;
+    int oc1;
+    bool accept = false;
+
+    if (surf == NULL || surf->pixels == NULL) {
+        return;
+    }
+    if (surf->clip.w <= 0 || surf->clip.h <= 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    xmin = surf->clip.x;
+    ymin = surf->clip.y;
+    xmax = (int64_t)surf->clip.x + (int64_t)surf->clip.w - 1;
+    ymax = (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1;
+
+    oc0 = sol__outcode(lx0, ly0, xmin, ymin, xmax, ymax);
+    oc1 = sol__outcode(lx1, ly1, xmin, ymin, xmax, ymax);
+
+    for (;;) {
+        if ((oc0 | oc1) == 0) {
+            accept = true;
+            break;
+        }
+        if ((oc0 & oc1) != 0) {
+            break;
+        }
+
+        int out = oc0 != 0 ? oc0 : oc1;
+        int64_t x = 0;
+        int64_t y = 0;
+
+        if ((out & SOL__OC_BOTTOM) != 0) {
+            x = lx0 + (lx1 - lx0) * (ymax - ly0) / (ly1 - ly0);
+            y = ymax;
+        } else if ((out & SOL__OC_TOP) != 0) {
+            x = lx0 + (lx1 - lx0) * (ymin - ly0) / (ly1 - ly0);
+            y = ymin;
+        } else if ((out & SOL__OC_RIGHT) != 0) {
+            y = ly0 + (ly1 - ly0) * (xmax - lx0) / (lx1 - lx0);
+            x = xmax;
+        } else if ((out & SOL__OC_LEFT) != 0) {
+            y = ly0 + (ly1 - ly0) * (xmin - lx0) / (lx1 - lx0);
+            x = xmin;
+        }
+
+        if (out == oc0) {
+            lx0 = x;
+            ly0 = y;
+            oc0 = sol__outcode(lx0, ly0, xmin, ymin, xmax, ymax);
+        } else {
+            lx1 = x;
+            ly1 = y;
+            oc1 = sol__outcode(lx1, ly1, xmin, ymin, xmax, ymax);
+        }
+    }
+
+    if (!accept) {
+        return;
+    }
+
+    if (ly0 == ly1) {
+        sol__draw_hline_span(surf, (int32_t)lx0, (int32_t)lx1, (int32_t)ly0, color);
+        return;
+    }
+    if (lx0 == lx1) {
+        int32_t top = (int32_t)SOL_MIN(ly0, ly1);
+        int32_t bot = (int32_t)SOL_MAX(ly0, ly1);
+        sol_draw_vline(surf, (int32_t)lx0, top, bot - top + 1, color);
+        return;
+    }
+
+    {
+        int32_t cx = (int32_t)lx0;
+        int32_t cy = (int32_t)ly0;
+        int32_t ex = (int32_t)lx1;
+        int32_t ey = (int32_t)ly1;
+        int32_t dx = ex > cx ? (ex - cx) : (cx - ex);
+        int32_t dy = ey > cy ? (ey - cy) : (cy - ey);
+        int32_t sx = cx < ex ? 1 : -1;
+        int32_t sy = cy < ey ? 1 : -1;
+        int32_t err = dx - dy;
+
+        for (;;) {
+            size_t idx = (size_t)cy * (size_t)surf->stride + (size_t)cx;
+            surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], color);
+
+            if (cx == ex && cy == ey) {
+                break;
+            }
+            int32_t e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                cx += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                cy += sy;
+            }
+        }
+    }
+}
+
+void sol_fill_rect(sol_surface_t *surf, sol_rect_t rect, sol_color_t color) {
+    sol_rect_t r;
+    int32_t row;
+
+    if (surf == NULL || surf->pixels == NULL || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 0 || r.h <= 0) {
+        return;
+    }
+
+    for (row = 0; row < r.h; ++row) {
+        sol__draw_hline_clipped(surf, r.x, r.x + r.w - 1, r.y + row, color);
+    }
+}
+
+void sol_draw_rect(sol_surface_t *surf, sol_rect_t rect, sol_color_t color) {
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0) {
+        return;
+    }
+    if (rect.h == 1) {
+        sol_draw_hline(surf, rect.x, rect.y, rect.w, color);
+        return;
+    }
+    if (rect.w == 1) {
+        sol_draw_vline(surf, rect.x, rect.y, rect.h, color);
+        return;
+    }
+
+    sol_draw_hline(surf, rect.x, rect.y, rect.w, color);
+    sol_draw_hline(surf, rect.x, rect.y + rect.h - 1, rect.w, color);
+    if (rect.h > 2) {
+        sol_draw_vline(surf, rect.x, rect.y + 1, rect.h - 2, color);
+        sol_draw_vline(surf, rect.x + rect.w - 1, rect.y + 1, rect.h - 2, color);
+    }
+}
+
+void sol_draw_rect_thick(sol_surface_t *surf, sol_rect_t rect, int32_t thickness,
+                         sol_color_t color) {
+    int32_t t = thickness;
+    sol_rect_t top_r;
+    sol_rect_t bot_r;
+    sol_rect_t left_r;
+    sol_rect_t right_r;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 || t <= 0) {
+        return;
+    }
+    if (t * 2 >= rect.w || t * 2 >= rect.h) {
+        sol_fill_rect(surf, rect, color);
+        return;
+    }
+
+    top_r = SOL_RECT(rect.x, rect.y, rect.w, t);
+    bot_r = SOL_RECT(rect.x, rect.y + rect.h - t, rect.w, t);
+    left_r = SOL_RECT(rect.x, rect.y + t, t, rect.h - 2 * t);
+    right_r = SOL_RECT(rect.x + rect.w - t, rect.y + t, t, rect.h - 2 * t);
+
+    sol_fill_rect(surf, top_r, color);
+    sol_fill_rect(surf, bot_r, color);
+    sol_fill_rect(surf, left_r, color);
+    sol_fill_rect(surf, right_r, color);
+}
+
+void sol_fill_rect_gradient_v(sol_surface_t *surf, sol_rect_t rect, sol_color_t top,
+                              sol_color_t bottom) {
+    sol_rect_t r;
+    int32_t row;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0) {
+        return;
+    }
+
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 0 || r.h <= 0) {
+        return;
+    }
+
+    if (rect.h == 1) {
+        sol__draw_hline_clipped(surf, r.x, r.x + r.w - 1, r.y, top);
+        return;
+    }
+
+    for (row = r.y; row < r.y + r.h; ++row) {
+        uint8_t t = (uint8_t)(((int64_t)(row - rect.y) * 255) / (rect.h - 1));
+        sol_color_t c = sol_color_lerp(top, bottom, t);
+        sol__draw_hline_clipped(surf, r.x, r.x + r.w - 1, row, c);
+    }
+}
+
+void sol_fill_rect_gradient_h(sol_surface_t *surf, sol_rect_t rect, sol_color_t left,
+                              sol_color_t right) {
+    sol_rect_t r;
+    int32_t col;
+    int32_t row;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0) {
+        return;
+    }
+
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 0 || r.h <= 0) {
+        return;
+    }
+
+    if (rect.w == 1) {
+        sol_fill_rect(surf, r, left);
+        return;
+    }
+
+    for (col = r.x; col < r.x + r.w; ++col) {
+        uint8_t t = (uint8_t)(((int64_t)(col - rect.x) * 255) / (rect.w - 1));
+        sol_color_t c = sol_color_lerp(left, right, t);
+        uint32_t sa = SOL_COLOR_A(c);
+
+        if (sa == 0u) {
+            continue;
+        }
+        if (sa == 255u) {
+            for (row = r.y; row < r.y + r.h; ++row) {
+                surf->pixels[(size_t)row * (size_t)surf->stride + (size_t)col] = c;
+            }
+        } else {
+            for (row = r.y; row < r.y + r.h; ++row) {
+                size_t idx = (size_t)row * (size_t)surf->stride + (size_t)col;
+                surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], c);
+            }
+        }
+    }
+}
+
+/* Exact 64-bit integer square root: floor(sqrt(n)) */
+SOL_PRIVATE uint32_t sol__isqrt64(uint64_t n) {
+    uint64_t res = 0;
+    uint64_t bit = (uint64_t)1 << 62;
+
+    while (bit > n) {
+        bit >>= 2;
+    }
+    while (bit != 0) {
+        if (n >= res + bit) {
+            n -= res + bit;
+            res = (res >> 1) + bit;
+        } else {
+            res >>= 1;
+        }
+        bit >>= 2;
+    }
+    return (uint32_t)res;
+}
+
+void sol_fill_circle(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                     sol_color_t color) {
+    int32_t y_min;
+    int32_t y_max;
+    int32_t y;
+    uint64_t r2;
+
+    if (surf == NULL || surf->pixels == NULL || radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (surf->clip.w <= 0 || surf->clip.h <= 0) {
+        return;
+    }
+    if (radius == 0) {
+        sol__draw_plot(surf, cx, cy, color);
+        return;
+    }
+
+    y_min = (int32_t)SOL_MAX((int64_t)cy - (int64_t)radius, (int64_t)surf->clip.y);
+    y_max = (int32_t)SOL_MIN((int64_t)cy + (int64_t)radius,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+    r2 = (uint64_t)radius * (uint64_t)radius;
+
+    /* Per-scanline exact chord guarantees zero overdraw for translucent colors */
+    for (y = y_min; y <= y_max; ++y) {
+        int64_t dy = (int64_t)y - (int64_t)cy;
+        uint64_t dy2 = (uint64_t)(dy * dy);
+        int32_t dx = (int32_t)sol__isqrt64(r2 - dy2);
+        sol__draw_hline_span(surf, cx - dx, cx + dx, y, color);
+    }
+}
+
+void sol_draw_circle(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                     sol_color_t color) {
+    int32_t x;
+    int32_t y;
+    int32_t err;
+
+    if (surf == NULL || surf->pixels == NULL || radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (radius == 0) {
+        sol__draw_plot(surf, cx, cy, color);
+        return;
+    }
+
+    x = 0;
+    y = radius;
+    err = 1 - radius;
+
+    /* Cardinal points (plotted once each) */
+    sol__draw_plot(surf, cx, cy - radius, color);
+    sol__draw_plot(surf, cx, cy + radius, color);
+    sol__draw_plot(surf, cx - radius, cy, color);
+    sol__draw_plot(surf, cx + radius, cy, color);
+
+    while (x < y) {
+        if (err < 0) {
+            err += 2 * x + 3;
+        } else {
+            err += 2 * (x - y) + 5;
+            y--;
+        }
+        x++;
+
+        if (x > y) {
+            break;
+        }
+
+        if (x == y) {
+            /* 4 diagonal points (plotted once each) */
+            sol__draw_plot(surf, cx + x, cy + y, color);
+            sol__draw_plot(surf, cx - x, cy + y, color);
+            sol__draw_plot(surf, cx + x, cy - y, color);
+            sol__draw_plot(surf, cx - x, cy - y, color);
+        } else {
+            /* 8 distinct octant points */
+            sol__draw_plot(surf, cx + x, cy + y, color);
+            sol__draw_plot(surf, cx - x, cy + y, color);
+            sol__draw_plot(surf, cx + x, cy - y, color);
+            sol__draw_plot(surf, cx - x, cy - y, color);
+            sol__draw_plot(surf, cx + y, cy + x, color);
+            sol__draw_plot(surf, cx - y, cy + x, color);
+            sol__draw_plot(surf, cx + y, cy - x, color);
+            sol__draw_plot(surf, cx - y, cy - x, color);
+        }
+    }
+}
+
+void sol_fill_ellipse(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rx, int32_t ry,
+                      sol_color_t color) {
+    int64_t rx2;
+    int64_t ry2;
+    int64_t two_rx2;
+    int64_t two_ry2;
+    int64_t x;
+    int64_t y;
+    int64_t px;
+    int64_t py;
+    int64_t p;
+
+    if (surf == NULL || surf->pixels == NULL || rx < 0 || ry < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (rx == 0) {
+        sol_draw_vline(surf, cx, cy - ry, 2 * ry + 1, color);
+        return;
+    }
+    if (ry == 0) {
+        sol_draw_hline(surf, cx - rx, cy, 2 * rx + 1, color);
+        return;
+    }
+    if (rx == ry) {
+        sol_fill_circle(surf, cx, cy, rx, color);
+        return;
+    }
+
+    rx2 = (int64_t)rx * (int64_t)rx;
+    ry2 = (int64_t)ry * (int64_t)ry;
+    two_rx2 = 2 * rx2;
+    two_ry2 = 2 * ry2;
+
+    x = 0;
+    y = ry;
+    px = 0;
+    py = two_rx2 * y;
+
+    /* Region 1: emit scanline right before y decrements (zero overdraw) */
+    p = ry2 - (rx2 * ry) + (rx2 / 4);
+    while (px < py) {
+        x++;
+        px += two_ry2;
+        if (p < 0) {
+            p += ry2 + px;
+        } else {
+            sol__draw_hline_span(surf, (int32_t)(cx - (x - 1)), (int32_t)(cx + (x - 1)),
+                                 (int32_t)(cy + y), color);
+            sol__draw_hline_span(surf, (int32_t)(cx - (x - 1)), (int32_t)(cx + (x - 1)),
+                                 (int32_t)(cy - y), color);
+            y--;
+            py -= two_rx2;
+            p += ry2 + px - py;
+        }
+    }
+
+    /* Region 2: one scanline per y step down to y = 0 */
+    p = ry2 * x * x + ry2 * x + (ry2 / 4) + rx2 * (y - 1) * (y - 1) - rx2 * ry2;
+    while (y >= 0) {
+        if (y == 0) {
+            sol__draw_hline_span(surf, (int32_t)(cx - rx), (int32_t)(cx + rx), cy, color);
+            break;
+        }
+
+        if (p > 0) {
+            sol__draw_hline_span(surf, (int32_t)(cx - x), (int32_t)(cx + x), (int32_t)(cy + y),
+                                 color);
+            sol__draw_hline_span(surf, (int32_t)(cx - x), (int32_t)(cx + x), (int32_t)(cy - y),
+                                 color);
+            y--;
+            py -= two_rx2;
+            p += rx2 - py;
+        } else {
+            x++;
+            px += two_ry2;
+            sol__draw_hline_span(surf, (int32_t)(cx - (x - 1)), (int32_t)(cx + (x - 1)),
+                                 (int32_t)(cy + y), color);
+            sol__draw_hline_span(surf, (int32_t)(cx - (x - 1)), (int32_t)(cx + (x - 1)),
+                                 (int32_t)(cy - y), color);
+            y--;
+            py -= two_rx2;
+            p += rx2 - py + px;
+        }
+    }
+}
+
+void sol_draw_ellipse(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rx, int32_t ry,
+                      sol_color_t color) {
+    int64_t rx2;
+    int64_t ry2;
+    int64_t two_rx2;
+    int64_t two_ry2;
+    int64_t x;
+    int64_t y;
+    int64_t px;
+    int64_t py;
+    int64_t p;
+
+    if (surf == NULL || surf->pixels == NULL || rx < 0 || ry < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (rx == 0) {
+        sol_draw_vline(surf, cx, cy - ry, 2 * ry + 1, color);
+        return;
+    }
+    if (ry == 0) {
+        sol_draw_hline(surf, cx - rx, cy, 2 * rx + 1, color);
+        return;
+    }
+    if (rx == ry) {
+        sol_draw_circle(surf, cx, cy, rx, color);
+        return;
+    }
+
+    rx2 = (int64_t)rx * (int64_t)rx;
+    ry2 = (int64_t)ry * (int64_t)ry;
+    two_rx2 = 2 * rx2;
+    two_ry2 = 2 * ry2;
+
+    x = 0;
+    y = ry;
+    px = 0;
+    py = two_rx2 * y;
+
+    /* Region 1 */
+    p = ry2 - (rx2 * ry) + (rx2 / 4);
+    while (px < py) {
+        if (x == 0) {
+            sol__draw_plot(surf, cx, (int32_t)(cy + y), color);
+            sol__draw_plot(surf, cx, (int32_t)(cy - y), color);
+        } else {
+            sol__draw_plot(surf, (int32_t)(cx + x), (int32_t)(cy + y), color);
+            sol__draw_plot(surf, (int32_t)(cx - x), (int32_t)(cy + y), color);
+            sol__draw_plot(surf, (int32_t)(cx + x), (int32_t)(cy - y), color);
+            sol__draw_plot(surf, (int32_t)(cx - x), (int32_t)(cy - y), color);
+        }
+
+        x++;
+        px += two_ry2;
+        if (p < 0) {
+            p += ry2 + px;
+        } else {
+            y--;
+            py -= two_rx2;
+            p += ry2 + px - py;
+        }
+    }
+
+    /* Region 2 */
+    p = ry2 * x * x + ry2 * x + (ry2 / 4) + rx2 * (y - 1) * (y - 1) - rx2 * ry2;
+    while (y >= 0) {
+        if (y == 0) {
+            sol__draw_plot(surf, (int32_t)(cx + x), cy, color);
+            sol__draw_plot(surf, (int32_t)(cx - x), cy, color);
+        } else {
+            sol__draw_plot(surf, (int32_t)(cx + x), (int32_t)(cy + y), color);
+            sol__draw_plot(surf, (int32_t)(cx - x), (int32_t)(cy + y), color);
+            sol__draw_plot(surf, (int32_t)(cx + x), (int32_t)(cy - y), color);
+            sol__draw_plot(surf, (int32_t)(cx - x), (int32_t)(cy - y), color);
+        }
+
+        y--;
+        py -= two_rx2;
+        if (p > 0) {
+            p += rx2 - py;
+        } else {
+            x++;
+            px += two_ry2;
+            p += rx2 - py + px;
+        }
+    }
+}
+
+void sol_fill_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                           sol_color_t color) {
+    int32_t r;
+    int32_t min_dim;
+    int32_t dy;
+    uint64_t r2;
+    int32_t left_cx;
+    int32_t right_cx;
+    int32_t top_cy;
+    int32_t bot_cy;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 ||
+        SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    if (radius <= 0) {
+        sol_fill_rect(surf, rect, color);
+        return;
+    }
+
+    min_dim = SOL_MIN(rect.w, rect.h);
+    r = SOL_MIN(radius, min_dim / 2);
+    if (r <= 0) {
+        sol_fill_rect(surf, rect, color);
+        return;
+    }
+
+    /* Center flat body (non-overlapping with corner arcs) */
+    if (rect.h > 2 * r) {
+        sol_fill_rect(surf, SOL_RECT(rect.x, rect.y + r, rect.w, rect.h - 2 * r), color);
+    }
+
+    left_cx = rect.x + r;
+    right_cx = rect.x + rect.w - 1 - r;
+    top_cy = rect.y + r;
+    bot_cy = rect.y + rect.h - 1 - r;
+    r2 = (uint64_t)r * (uint64_t)r;
+
+    /* Top and bottom rounded bands (dy = 1..r away from corner centers) */
+    for (dy = 1; dy <= r; ++dy) {
+        int32_t dx = (int32_t)sol__isqrt64(r2 - (uint64_t)dy * (uint64_t)dy);
+        sol__draw_hline_span(surf, left_cx - dx, right_cx + dx, top_cy - dy, color);
+        sol__draw_hline_span(surf, left_cx - dx, right_cx + dx, bot_cy + dy, color);
+    }
+}
+
+void sol_draw_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                           sol_color_t color) {
+    int32_t r;
+    int32_t min_dim;
+    int32_t left_cx;
+    int32_t right_cx;
+    int32_t top_cy;
+    int32_t bot_cy;
+    int32_t x;
+    int32_t y;
+    int32_t err;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 ||
+        SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    if (radius <= 0) {
+        sol_draw_rect(surf, rect, color);
+        return;
+    }
+
+    min_dim = SOL_MIN(rect.w, rect.h);
+    r = SOL_MIN(radius, min_dim / 2);
+    if (r <= 0) {
+        sol_draw_rect(surf, rect, color);
+        return;
+    }
+
+    left_cx = rect.x + r;
+    right_cx = rect.x + rect.w - 1 - r;
+    top_cy = rect.y + r;
+    bot_cy = rect.y + rect.h - 1 - r;
+
+    /* Straight edge segments (between corner tangents) */
+    if (rect.w > 2 * r) {
+        sol_draw_hline(surf, left_cx, rect.y, rect.w - 2 * r, color);
+        sol_draw_hline(surf, left_cx, rect.y + rect.h - 1, rect.w - 2 * r, color);
+    }
+    if (rect.h > 2 * r) {
+        sol_draw_vline(surf, rect.x, top_cy, rect.h - 2 * r, color);
+        sol_draw_vline(surf, rect.x + rect.w - 1, top_cy, rect.h - 2 * r, color);
+    }
+
+    /* Four quarter-circle corner arcs */
+    x = 0;
+    y = r;
+    err = 1 - r;
+
+    while (x < y) {
+        if (err < 0) {
+            err += 2 * x + 3;
+        } else {
+            err += 2 * (x - y) + 5;
+            y--;
+        }
+        x++;
+
+        if (x > y) {
+            break;
+        }
+
+        if (x == y) {
+            sol__draw_plot(surf, left_cx - x, top_cy - y, color);
+            sol__draw_plot(surf, right_cx + x, top_cy - y, color);
+            sol__draw_plot(surf, left_cx - x, bot_cy + y, color);
+            sol__draw_plot(surf, right_cx + x, bot_cy + y, color);
+        } else {
+            /* Top-left */
+            sol__draw_plot(surf, left_cx - x, top_cy - y, color);
+            sol__draw_plot(surf, left_cx - y, top_cy - x, color);
+            /* Top-right */
+            sol__draw_plot(surf, right_cx + x, top_cy - y, color);
+            sol__draw_plot(surf, right_cx + y, top_cy - x, color);
+            /* Bottom-left */
+            sol__draw_plot(surf, left_cx - x, bot_cy + y, color);
+            sol__draw_plot(surf, left_cx - y, bot_cy + x, color);
+            /* Bottom-right */
+            sol__draw_plot(surf, right_cx + x, bot_cy + y, color);
+            sol__draw_plot(surf, right_cx + y, bot_cy + x, color);
+        }
+    }
+}
+
+void sol_draw_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                       int32_t x2, int32_t y2, sol_color_t color) {
+    sol_draw_line(surf, x0, y0, x1, y1, color);
+    sol_draw_line(surf, x1, y1, x2, y2, color);
+    sol_draw_line(surf, x2, y2, x0, y0, color);
+}
+
+SOL_PRIVATE void sol__swap_i32(int32_t *a, int32_t *b) {
+    int32_t tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                       int32_t x2, int32_t y2, sol_color_t color) {
+    int32_t y;
+
+    if (surf == NULL || surf->pixels == NULL || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (surf->clip.w <= 0 || surf->clip.h <= 0) {
+        return;
+    }
+
+    /* Sort vertices ascending by Y: y0 <= y1 <= y2 */
+    if (y0 > y1) {
+        sol__swap_i32(&y0, &y1);
+        sol__swap_i32(&x0, &x1);
+    }
+    if (y1 > y2) {
+        sol__swap_i32(&y1, &y2);
+        sol__swap_i32(&x1, &x2);
+    }
+    if (y0 > y1) {
+        sol__swap_i32(&y0, &y1);
+        sol__swap_i32(&x0, &x1);
+    }
+
+    if (y0 == y2) {
+        int32_t min_x = SOL_MIN(x0, SOL_MIN(x1, x2));
+        int32_t max_x = SOL_MAX(x0, SOL_MAX(x1, x2));
+        sol__draw_hline_span(surf, min_x, max_x, y0, color);
+        return;
+    }
+
+    /* Upper half: y0 .. (y1 - 1), or y0 .. y1 if flat-bottom (y1 == y2) */
+    if (y1 > y0) {
+        int64_t total_h = (int64_t)y2 - (int64_t)y0;
+        int64_t seg_h = (int64_t)y1 - (int64_t)y0;
+        int32_t last_upper = (y1 == y2) ? y1 : (y1 - 1);
+
+        for (y = y0; y <= last_upper; ++y) {
+            int64_t dy = (int64_t)y - (int64_t)y0;
+            int32_t ax = (int32_t)((int64_t)x0 + ((int64_t)(x2 - x0) * dy) / total_h);
+            int32_t bx = (int32_t)((int64_t)x0 + ((int64_t)(x1 - x0) * dy) / seg_h);
+            sol__draw_hline_span(surf, ax, bx, y, color);
+        }
+    }
+
+    /* Lower half: y1 .. y2 */
+    if (y2 > y1) {
+        int64_t total_h = (int64_t)y2 - (int64_t)y0;
+        int64_t seg_h = (int64_t)y2 - (int64_t)y1;
+
+        for (y = y1; y <= y2; ++y) {
+            int64_t dy_total = (int64_t)y - (int64_t)y0;
+            int64_t dy_seg = (int64_t)y - (int64_t)y1;
+            int32_t ax = (int32_t)((int64_t)x0 + ((int64_t)(x2 - x0) * dy_total) / total_h);
+            int32_t bx = (int32_t)((int64_t)x1 + ((int64_t)(x2 - x1) * dy_seg) / seg_h);
+            sol__draw_hline_span(surf, ax, bx, y, color);
+        }
+    }
+}
+/* === END sol_draw.c === */
+
+/* === BEGIN sol_alloc.c === */
+
+void *sol__memcpy(void *dst, const void *src, size_t n) {
+    uint8_t *d = (uint8_t *)dst;
+    const uint8_t *s = (const uint8_t *)src;
+    size_t i;
+
+    if (d == NULL || s == NULL || n == 0u) {
+        return dst;
+    }
+
+    for (i = 0; i < n; ++i) {
+        d[i] = s[i];
+    }
+    return dst;
+}
+
+void *sol__memset(void *dst, int val, size_t n) {
+    uint8_t *d = (uint8_t *)dst;
+    uint8_t byte = (uint8_t)val;
+    size_t i;
+
+    if (d == NULL || n == 0u) {
+        return dst;
+    }
+
+    for (i = 0; i < n; ++i) {
+        d[i] = byte;
+    }
+    return dst;
+}
+
+void *sol__memmove(void *dst, const void *src, size_t n) {
+    uint8_t *d = (uint8_t *)dst;
+    const uint8_t *s = (const uint8_t *)src;
+    size_t i;
+
+    if (d == NULL || s == NULL || n == 0u || d == s) {
+        return dst;
+    }
+
+    if ((uintptr_t)d < (uintptr_t)s) {
+        for (i = 0; i < n; ++i) {
+            d[i] = s[i];
+        }
+    } else {
+        for (i = n; i > 0u; --i) {
+            d[i - 1u] = s[i - 1u];
+        }
+    }
+    return dst;
+}
+
+int sol__memcmp(const void *a, const void *b, size_t n) {
+    const uint8_t *pa = (const uint8_t *)a;
+    const uint8_t *pb = (const uint8_t *)b;
+    size_t i;
+
+    if (n == 0u || pa == pb) {
+        return 0;
+    }
+    if (pa == NULL) {
+        return -1;
+    }
+    if (pb == NULL) {
+        return 1;
+    }
+
+    for (i = 0; i < n; ++i) {
+        if (pa[i] != pb[i]) {
+            return (pa[i] < pb[i]) ? -1 : 1;
+        }
+    }
+    return 0;
+}
+
+sol_status_t sol_arena_init(sol_arena_t *arena, void *buffer, size_t capacity) {
+    if (arena == NULL || buffer == NULL || capacity == 0u) {
+        return SOL_ERR_INVALID_ARG;
+    }
+
+    arena->base = (uint8_t *)buffer;
+    arena->capacity = capacity;
+    arena->offset = 0u;
+    return SOL_OK;
+}
+
+void *sol_arena_alloc_aligned(sol_arena_t *arena, size_t size, size_t align) {
+    uintptr_t curr_addr;
+    uintptr_t aligned_addr;
+    size_t padding;
+    size_t needed;
+
+    if (arena == NULL || arena->base == NULL || size == 0u) {
+        return NULL;
+    }
+    if (align == 0u || (align & (align - 1u)) != 0u) {
+        return NULL;
+    }
+
+    curr_addr = (uintptr_t)arena->base + (uintptr_t)arena->offset;
+    aligned_addr = (curr_addr + (uintptr_t)(align - 1u)) & ~((uintptr_t)(align - 1u));
+    padding = (size_t)(aligned_addr - curr_addr);
+
+    if (padding > arena->capacity - arena->offset) {
+        return NULL;
+    }
+    if (size > arena->capacity - arena->offset - padding) {
+        return NULL;
+    }
+
+    needed = padding + size;
+    arena->offset += needed;
+    return (void *)aligned_addr;
+}
+
+void *sol_arena_alloc(sol_arena_t *arena, size_t size) {
+    size_t default_align = sizeof(void *) >= 8u ? sizeof(void *) : 8u;
+    return sol_arena_alloc_aligned(arena, size, default_align);
+}
+
+void *sol_arena_calloc(sol_arena_t *arena, size_t count, size_t size) {
+    size_t total;
+    void *ptr;
+
+    if (count == 0u || size == 0u) {
+        return NULL;
+    }
+    if (sol__mul_overflow_sz(count, size, &total)) {
+        return NULL;
+    }
+
+    ptr = sol_arena_alloc(arena, total);
+    if (ptr != NULL) {
+        SOL_MEMSET(ptr, 0, total);
+    }
+    return ptr;
+}
+
+void sol_arena_reset(sol_arena_t *arena) {
+    if (arena == NULL) {
+        return;
+    }
+    arena->offset = 0u;
+}
+
+size_t sol_arena_remaining(const sol_arena_t *arena) {
+    if (arena == NULL || arena->offset >= arena->capacity) {
+        return 0u;
+    }
+    return arena->capacity - arena->offset;
+}
+
+size_t sol_arena_mark(const sol_arena_t *arena) {
+    if (arena == NULL) {
+        return 0u;
+    }
+    return arena->offset;
+}
+
+void sol_arena_rewind(sol_arena_t *arena, size_t mark) {
+    if (arena == NULL) {
+        return;
+    }
+    if (mark < arena->offset) {
+        arena->offset = mark;
+    }
+}
+/* === END sol_alloc.c === */
+
+/* === BEGIN sol_format.c === */
+
+/* 8x8 ordered Bayer matrix (values 0..63) for low-bit-depth dithering */
+static const uint8_t k_bayer8x8[8][8] = {
+    {0, 32, 8, 40, 2, 34, 10, 42},  {48, 16, 56, 24, 50, 18, 58, 26},
+    {12, 44, 4, 36, 14, 46, 6, 38}, {60, 28, 52, 20, 62, 30, 54, 22},
+    {3, 35, 11, 43, 1, 33, 9, 41},  {51, 19, 59, 27, 49, 17, 57, 25},
+    {15, 47, 7, 39, 13, 45, 5, 37}, {63, 31, 55, 23, 61, 29, 53, 21}};
+
+static inline uint32_t sol__clamp_u8(uint32_t v) {
+    return (v > 255u) ? 255u : v;
+}
+
+static inline uint16_t sol__pack_rgb565(uint32_t r, uint32_t g, uint32_t b) {
+    return (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+}
+
+int32_t sol_format_bpp(sol_pixel_format_t fmt) {
+    switch (fmt) {
+    case SOL_FMT_ARGB8888:
+    case SOL_FMT_XRGB8888:
+    case SOL_FMT_RGBA8888:
+    case SOL_FMT_BGRA8888:
+    case SOL_FMT_ABGR8888:
+        return 4;
+    case SOL_FMT_RGB888:
+    case SOL_FMT_BGR888:
+        return 3;
+    case SOL_FMT_RGB565:
+    case SOL_FMT_BGR565:
+        return 2;
+    case SOL_FMT_A8:
+    case SOL_FMT_GRAY8:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+sol_status_t sol_convert_row(void *dst, sol_pixel_format_t dst_fmt, const uint32_t *src_argb,
+                             int32_t width) {
+    int32_t i;
+
+    if (dst == NULL || src_argb == NULL || width <= 0) {
+        return SOL_ERR_INVALID_ARG;
+    }
+
+    switch (dst_fmt) {
+    case SOL_FMT_ARGB8888:
+        SOL_MEMCPY(dst, src_argb, (size_t)width * sizeof(uint32_t));
+        return SOL_OK;
+
+    case SOL_FMT_XRGB8888: {
+        uint32_t *d = (uint32_t *)dst;
+        for (i = 0; i < width; ++i) {
+            d[i] = 0xFF000000u | (src_argb[i] & 0x00FFFFFFu);
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_RGBA8888: {
+        uint32_t *d = (uint32_t *)dst;
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            d[i] = ((c & 0x00FFFFFFu) << 8) | ((c >> 24) & 0xFFu);
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_BGRA8888: {
+        uint32_t *d = (uint32_t *)dst;
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            uint32_t a = SOL_COLOR_A(c);
+            uint32_t r = SOL_COLOR_R(c);
+            uint32_t g = SOL_COLOR_G(c);
+            uint32_t b = SOL_COLOR_B(c);
+            d[i] = (b << 24) | (g << 16) | (r << 8) | a;
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_ABGR8888: {
+        uint32_t *d = (uint32_t *)dst;
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            uint32_t a = SOL_COLOR_A(c);
+            uint32_t r = SOL_COLOR_R(c);
+            uint32_t g = SOL_COLOR_G(c);
+            uint32_t b = SOL_COLOR_B(c);
+            d[i] = (a << 24) | (b << 16) | (g << 8) | r;
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_RGB888: {
+        uint8_t *d = (uint8_t *)dst;
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            d[i * 3 + 0] = SOL_COLOR_R(c);
+            d[i * 3 + 1] = SOL_COLOR_G(c);
+            d[i * 3 + 2] = SOL_COLOR_B(c);
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_BGR888: {
+        uint8_t *d = (uint8_t *)dst;
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            d[i * 3 + 0] = SOL_COLOR_B(c);
+            d[i * 3 + 1] = SOL_COLOR_G(c);
+            d[i * 3 + 2] = SOL_COLOR_R(c);
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_RGB565: {
+        uint16_t *d = (uint16_t *)dst;
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            d[i] = sol__pack_rgb565(SOL_COLOR_R(c), SOL_COLOR_G(c), SOL_COLOR_B(c));
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_BGR565: {
+        uint16_t *d = (uint16_t *)dst;
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            d[i] = sol__pack_rgb565(SOL_COLOR_B(c), SOL_COLOR_G(c), SOL_COLOR_R(c));
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_A8: {
+        uint8_t *d = (uint8_t *)dst;
+        for (i = 0; i < width; ++i) {
+            d[i] = SOL_COLOR_A(src_argb[i]);
+        }
+        return SOL_OK;
+    }
+
+    case SOL_FMT_GRAY8: {
+        uint8_t *d = (uint8_t *)dst;
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            uint32_t lum = 77u * (uint32_t)SOL_COLOR_R(c) + 150u * (uint32_t)SOL_COLOR_G(c) +
+                           29u * (uint32_t)SOL_COLOR_B(c) + 128u;
+            d[i] = (uint8_t)(lum >> 8);
+        }
+        return SOL_OK;
+    }
+
+    default:
+        return SOL_ERR_INVALID_ARG;
+    }
+}
+
+sol_status_t sol_convert_row_dithered(void *dst, sol_pixel_format_t dst_fmt,
+                                      const uint32_t *src_argb, int32_t width, int32_t y) {
+    const uint8_t *row_bayer;
+    uint16_t *d;
+    int32_t i;
+
+    if (dst == NULL || src_argb == NULL || width <= 0) {
+        return SOL_ERR_INVALID_ARG;
+    }
+
+    if (dst_fmt != SOL_FMT_RGB565 && dst_fmt != SOL_FMT_BGR565) {
+        return sol_convert_row(dst, dst_fmt, src_argb, width);
+    }
+
+    row_bayer = k_bayer8x8[(uint32_t)y & 7u];
+    d = (uint16_t *)dst;
+
+    if (dst_fmt == SOL_FMT_RGB565) {
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            uint32_t bayer = row_bayer[(uint32_t)i & 7u];
+            uint32_t d5 = bayer >> 3;
+            uint32_t d6 = bayer >> 4;
+            uint32_t r = sol__clamp_u8((uint32_t)SOL_COLOR_R(c) + d5);
+            uint32_t g = sol__clamp_u8((uint32_t)SOL_COLOR_G(c) + d6);
+            uint32_t b = sol__clamp_u8((uint32_t)SOL_COLOR_B(c) + d5);
+            d[i] = sol__pack_rgb565(r, g, b);
+        }
+    } else {
+        for (i = 0; i < width; ++i) {
+            uint32_t c = src_argb[i];
+            uint32_t bayer = row_bayer[(uint32_t)i & 7u];
+            uint32_t d5 = bayer >> 3;
+            uint32_t d6 = bayer >> 4;
+            uint32_t r = sol__clamp_u8((uint32_t)SOL_COLOR_R(c) + d5);
+            uint32_t g = sol__clamp_u8((uint32_t)SOL_COLOR_G(c) + d6);
+            uint32_t b = sol__clamp_u8((uint32_t)SOL_COLOR_B(c) + d5);
+            d[i] = sol__pack_rgb565(b, g, r);
+        }
+    }
+
+    return SOL_OK;
+}
+
+sol_status_t sol_present_to_buffer(void *dst_pixels, int32_t dst_stride_bytes,
+                                   sol_pixel_format_t dst_fmt, const sol_surface_t *src,
+                                   bool dither) {
+    int32_t bpp;
+    int32_t y;
+    size_t min_stride_bytes;
+    uint8_t *dst_row;
+    const uint32_t *src_row;
+
+    if (dst_pixels == NULL || src == NULL || src->pixels == NULL) {
+        return SOL_ERR_INVALID_ARG;
+    }
+    if (src->width <= 0 || src->height <= 0 || src->stride < src->width) {
+        return SOL_ERR_INVALID_ARG;
+    }
+
+    bpp = sol_format_bpp(dst_fmt);
+    if (bpp <= 0) {
+        return SOL_ERR_INVALID_ARG;
+    }
+
+    if (sol__mul_overflow_sz((size_t)src->width, (size_t)bpp, &min_stride_bytes) ||
+        dst_stride_bytes <= 0 || (size_t)dst_stride_bytes < min_stride_bytes) {
+        return SOL_ERR_INVALID_ARG;
+    }
+
+    dst_row = (uint8_t *)dst_pixels;
+    src_row = src->pixels;
+
+    for (y = 0; y < src->height; ++y) {
+        sol_status_t st = dither
+                              ? sol_convert_row_dithered(dst_row, dst_fmt, src_row, src->width, y)
+                              : sol_convert_row(dst_row, dst_fmt, src_row, src->width);
+        if (st != SOL_OK) {
+            return st;
+        }
+        dst_row += (size_t)dst_stride_bytes;
+        src_row += (size_t)src->stride;
+    }
+
+    return SOL_OK;
+}
+/* === END sol_format.c === */
 
 #endif /* SOLSTICESFG_IMPLEMENTATION_INCLUDED */
 #endif /* SOL_IMPLEMENTATION */

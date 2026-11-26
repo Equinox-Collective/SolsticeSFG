@@ -11,6 +11,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef SOL_FREESTANDING
+    #if !defined(SOL_MALLOC) || !defined(SOL_REALLOC) || !defined(SOL_FREE)
+        #include <stdlib.h>
+    #endif
+    #if !defined(SOL_MEMCPY) || !defined(SOL_MEMSET) || !defined(SOL_MEMMOVE) ||                   \
+        !defined(SOL_MEMCMP)
+        #include <string.h>
+    #endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -148,6 +158,105 @@ SOL_API void sol_draw_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int3
                                int32_t x2, int32_t y2, sol_color_t color);
 SOL_API void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
                                int32_t x2, int32_t y2, sol_color_t color);
+
+/* ============================================================================
+ * Phase 1.2: Freestanding Memory & Arena Allocator
+ * ============================================================================ */
+
+/* Pure C99 zero-libc memory fallbacks (used automatically under SOL_FREESTANDING) */
+SOL_API void *sol__memcpy(void *dst, const void *src, size_t n);
+SOL_API void *sol__memset(void *dst, int val, size_t n);
+SOL_API void *sol__memmove(void *dst, const void *src, size_t n);
+SOL_API int sol__memcmp(const void *a, const void *b, size_t n);
+
+#ifdef SOL_FREESTANDING
+    #ifndef SOL_MALLOC
+        #define SOL_MALLOC(sz) ((void)(sz), (void *)0)
+    #endif
+    #ifndef SOL_REALLOC
+        #define SOL_REALLOC(ptr, sz) ((void)(ptr), (void)(sz), (void *)0)
+    #endif
+    #ifndef SOL_FREE
+        #define SOL_FREE(ptr) ((void)(ptr))
+    #endif
+    #ifndef SOL_MEMCPY
+        #define SOL_MEMCPY(dst, src, n) sol__memcpy((dst), (src), (n))
+    #endif
+    #ifndef SOL_MEMSET
+        #define SOL_MEMSET(dst, val, n) sol__memset((dst), (val), (n))
+    #endif
+    #ifndef SOL_MEMMOVE
+        #define SOL_MEMMOVE(dst, src, n) sol__memmove((dst), (src), (n))
+    #endif
+    #ifndef SOL_MEMCMP
+        #define SOL_MEMCMP(a, b, n) sol__memcmp((a), (b), (n))
+    #endif
+#else
+    #ifndef SOL_MALLOC
+        #define SOL_MALLOC(sz) malloc(sz)
+    #endif
+    #ifndef SOL_REALLOC
+        #define SOL_REALLOC(ptr, sz) realloc((ptr), (sz))
+    #endif
+    #ifndef SOL_FREE
+        #define SOL_FREE(ptr) free(ptr)
+    #endif
+    #ifndef SOL_MEMCPY
+        #define SOL_MEMCPY(dst, src, n) memcpy((dst), (src), (n))
+    #endif
+    #ifndef SOL_MEMSET
+        #define SOL_MEMSET(dst, val, n) memset((dst), (val), (n))
+    #endif
+    #ifndef SOL_MEMMOVE
+        #define SOL_MEMMOVE(dst, src, n) memmove((dst), (src), (n))
+    #endif
+    #ifndef SOL_MEMCMP
+        #define SOL_MEMCMP(a, b, n) memcmp((a), (b), (n))
+    #endif
+#endif
+
+/* Caller-backed Arena / Bump Allocator (zero fragmentation, instant reset) */
+typedef struct sol_arena {
+    uint8_t *base;
+    size_t capacity;
+    size_t offset;
+} sol_arena_t;
+
+SOL_API sol_status_t sol_arena_init(sol_arena_t *arena, void *buffer, size_t capacity);
+SOL_API void *sol_arena_alloc(sol_arena_t *arena, size_t size);
+SOL_API void *sol_arena_alloc_aligned(sol_arena_t *arena, size_t size, size_t align);
+SOL_API void *sol_arena_calloc(sol_arena_t *arena, size_t count, size_t size);
+SOL_API void sol_arena_reset(sol_arena_t *arena);
+SOL_API size_t sol_arena_remaining(const sol_arena_t *arena);
+SOL_API size_t sol_arena_mark(const sol_arena_t *arena);
+SOL_API void sol_arena_rewind(sol_arena_t *arena, size_t mark);
+
+/* ============================================================================
+ * Phase 1.3: Multi-Format Framebuffer Conversion
+ * ============================================================================ */
+
+typedef enum sol_pixel_format {
+    SOL_FMT_ARGB8888 = 0, /* Canonical internal format: 0xAARRGGBB */
+    SOL_FMT_XRGB8888,     /* Linux DRM/KMS, X11, Windows DIB */
+    SOL_FMT_RGBA8888,     /* OpenGL / Wayland / macOS */
+    SOL_FMT_BGRA8888,     /* Little-endian byte order on DRM/Wayland/Win32 */
+    SOL_FMT_ABGR8888,     /* 0xAABBGGRR */
+    SOL_FMT_RGB888,       /* 24-bit packed: R, G, B */
+    SOL_FMT_BGR888,       /* 24-bit packed: B, G, R */
+    SOL_FMT_RGB565,       /* 16-bit embedded / VESA BIOS */
+    SOL_FMT_BGR565,       /* 16-bit BGR565 */
+    SOL_FMT_A8,           /* 8-bit alpha mask (extracts A) */
+    SOL_FMT_GRAY8         /* 8-bit grayscale luminance (BT.601) */
+} sol_pixel_format_t;
+
+SOL_API int32_t sol_format_bpp(sol_pixel_format_t fmt);
+SOL_API sol_status_t sol_convert_row(void *dst, sol_pixel_format_t dst_fmt,
+                                     const uint32_t *src_argb, int32_t width);
+SOL_API sol_status_t sol_convert_row_dithered(void *dst, sol_pixel_format_t dst_fmt,
+                                              const uint32_t *src_argb, int32_t width, int32_t y);
+SOL_API sol_status_t sol_present_to_buffer(void *dst_pixels, int32_t dst_stride_bytes,
+                                           sol_pixel_format_t dst_fmt, const sol_surface_t *src,
+                                           bool dither);
 
 #ifdef __cplusplus
 }

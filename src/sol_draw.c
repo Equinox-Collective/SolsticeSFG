@@ -823,7 +823,6 @@ SOL_PRIVATE void sol__swap_i32(int32_t *a, int32_t *b) {
 void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
                        int32_t x2, int32_t y2, sol_color_t color) {
     int32_t y;
-    int32_t last_upper;
 
     if (surf == NULL || surf->pixels == NULL || SOL_COLOR_A(color) == 0u) {
         return;
@@ -857,7 +856,7 @@ void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, 
     if (y1 > y0) {
         int64_t total_h = (int64_t)y2 - (int64_t)y0;
         int64_t seg_h = (int64_t)y1 - (int64_t)y0;
-        last_upper = (y1 == y2) ? y1 : (y1 - 1);
+        int32_t last_upper = (y1 == y2) ? y1 : (y1 - 1);
 
         for (y = y0; y <= last_upper; ++y) {
             int64_t dy = (int64_t)y - (int64_t)y0;
