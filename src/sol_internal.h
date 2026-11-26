@@ -79,4 +79,24 @@ static inline sol_fx24_8_t sol__fx24_8_mul(sol_fx24_8_t a, sol_fx24_8_t b) {
     return (sol_fx24_8_t)(((int64_t)a * (int64_t)b) >> 8);
 }
 
+/* Exact 64-bit integer square root: floor(sqrt(n)) */
+static inline uint32_t sol__isqrt64(uint64_t n) {
+    uint64_t res = 0;
+    uint64_t bit = (uint64_t)1 << 62;
+
+    while (bit > n) {
+        bit >>= 2;
+    }
+    while (bit != 0) {
+        if (n >= res + bit) {
+            n -= res + bit;
+            res = (res >> 1) + bit;
+        } else {
+            res >>= 1;
+        }
+        bit >>= 2;
+    }
+    return (uint32_t)res;
+}
+
 #endif /* SOL_INTERNAL_H */

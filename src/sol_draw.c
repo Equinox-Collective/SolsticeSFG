@@ -394,26 +394,6 @@ void sol_fill_rect_gradient_h(sol_surface_t *surf, sol_rect_t rect, sol_color_t 
     }
 }
 
-/* Exact 64-bit integer square root: floor(sqrt(n)) */
-SOL_PRIVATE uint32_t sol__isqrt64(uint64_t n) {
-    uint64_t res = 0;
-    uint64_t bit = (uint64_t)1 << 62;
-
-    while (bit > n) {
-        bit >>= 2;
-    }
-    while (bit != 0) {
-        if (n >= res + bit) {
-            n -= res + bit;
-            res = (res >> 1) + bit;
-        } else {
-            res >>= 1;
-        }
-        bit >>= 2;
-    }
-    return (uint32_t)res;
-}
-
 void sol_fill_circle(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
                      sol_color_t color) {
     int32_t y_min;

@@ -73,6 +73,24 @@ typedef uint32_t sol_color_t;
 #define SOL_COLOR_DARK_GRAY ((sol_color_t)0xFF303030u)
 #define SOL_COLOR_LIGHT_GRAY ((sol_color_t)0xFFC0C0C0u)
 
+typedef enum sol_blend_mode {
+    SOL_BLEND_NONE = 0, /* Direct overwrite (ignores dst, copies src as-is) */
+    SOL_BLEND_SRC_OVER, /* Standard Porter-Duff alpha compositing */
+    SOL_BLEND_SRC_IN,
+    SOL_BLEND_SRC_OUT,
+    SOL_BLEND_SRC_ATOP,
+    SOL_BLEND_DST_OVER,
+    SOL_BLEND_ADD,      /* Additive glow */
+    SOL_BLEND_MULTIPLY, /* Darkening multiply blended by src alpha */
+    SOL_BLEND_SCREEN,   /* Lightening screen blended by src alpha */
+    SOL_BLEND_OVERLAY   /* Contrast overlay blended by src alpha */
+} sol_blend_mode_t;
+
+typedef struct sol_gradient_stop {
+    uint8_t pos; /* 0..255 */
+    sol_color_t color;
+} sol_gradient_stop_t;
+
 typedef enum sol_status {
     SOL_OK = 0,
     SOL_ERR_INVALID_ARG = -1,
@@ -97,6 +115,34 @@ typedef struct sol_surface {
     sol_rect_t clip;
 } sol_surface_t;
 
+typedef struct sol_point {
+    int32_t x;
+    int32_t y;
+} sol_point_t;
+
+typedef struct sol_size {
+    int32_t w;
+    int32_t h;
+} sol_size_t;
+
+#define SOL_POINT(x, y) ((sol_point_t){(x), (y)})
+#define SOL_SIZE(w, h) ((sol_size_t){(w), (h)})
+
+#define SOL_CLIP_STACK_MAX 32
+#define SOL_DIRTY_MAX_RECTS 32
+
+typedef struct sol_clip_stack {
+    sol_rect_t rects[SOL_CLIP_STACK_MAX];
+    int32_t depth;
+} sol_clip_stack_t;
+
+typedef struct sol_dirty_tracker {
+    sol_rect_t rects[SOL_DIRTY_MAX_RECTS];
+    int32_t count;
+    sol_rect_t bounds;
+    bool full_redraw;
+} sol_dirty_tracker_t;
+
 /* Core & Surface Management */
 SOL_API const char *sol_version_string(void);
 
@@ -104,20 +150,46 @@ SOL_API sol_status_t sol_surface_init(sol_surface_t *surf, uint32_t *pixels, int
                                       int32_t height, int32_t stride);
 SOL_API void sol_surface_set_clip(sol_surface_t *surf, sol_rect_t clip);
 SOL_API void sol_surface_reset_clip(sol_surface_t *surf);
+SOL_API sol_status_t sol_surface_subview(sol_surface_t *dst, const sol_surface_t *src,
+                                         sol_rect_t region);
+SOL_API void sol_clip_intersect(sol_surface_t *surf, sol_rect_t rect);
+SOL_API void sol_clip_stack_init(sol_clip_stack_t *stack);
+SOL_API sol_status_t sol_push_clip(sol_surface_t *surf, sol_clip_stack_t *stack, sol_rect_t rect);
+SOL_API sol_status_t sol_pop_clip(sol_surface_t *surf, sol_clip_stack_t *stack);
+
+/* Dirty Rectangle Tracker */
+SOL_API sol_status_t sol_dirty_init(sol_dirty_tracker_t *dt, int32_t width, int32_t height);
+SOL_API void sol_dirty_reset(sol_dirty_tracker_t *dt);
+SOL_API void sol_dirty_mark_all(sol_dirty_tracker_t *dt);
+SOL_API void sol_dirty_add(sol_dirty_tracker_t *dt, sol_rect_t rect);
+SOL_API bool sol_dirty_is_empty(const sol_dirty_tracker_t *dt);
+SOL_API sol_rect_t sol_dirty_bounding_box(const sol_dirty_tracker_t *dt);
 
 /* Geometry Helpers */
 SOL_API sol_rect_t sol_rect_intersect(sol_rect_t a, sol_rect_t b);
+SOL_API sol_rect_t sol_rect_intersect(sol_rect_t a, sol_rect_t b);
+SOL_API sol_rect_t sol_rect_union(sol_rect_t a, sol_rect_t b);
+SOL_API sol_rect_t sol_rect_inset(sol_rect_t rect, int32_t dx, int32_t dy);
+SOL_API bool sol_rect_contains_point(sol_rect_t rect, int32_t x, int32_t y);
+SOL_API bool sol_rect_equals(sol_rect_t a, sol_rect_t b);
 
 /* Color & Blending */
 SOL_API sol_color_t sol_color_with_alpha(sol_color_t color, uint8_t alpha);
 SOL_API sol_color_t sol_color_lerp(sol_color_t a, sol_color_t b, uint8_t t);
+SOL_API sol_color_t sol_color_lerp_linear(sol_color_t a, sol_color_t b, uint8_t t);
 SOL_API sol_color_t sol_color_blend(sol_color_t dst, sol_color_t src);
+SOL_API sol_color_t sol_color_blend_mode(sol_color_t dst, sol_color_t src, sol_blend_mode_t mode);
 
 /* Core Pixel Operations */
 SOL_API void sol_clear(sol_surface_t *surf, sol_color_t color);
 SOL_API void sol_put_pixel(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color);
 SOL_API void sol_blend_pixel(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color);
 SOL_API sol_color_t sol_get_pixel(const sol_surface_t *surf, int32_t x, int32_t y);
+
+/* Premultiplied Alpha */
+SOL_API sol_color_t sol_color_premul(sol_color_t color);
+SOL_API sol_color_t sol_color_unpremul(sol_color_t premul_color);
+SOL_API sol_color_t sol_color_blend_premul(sol_color_t dst_pm, sol_color_t src_pm);
 
 /* Lines */
 SOL_API void sol_draw_hline(sol_surface_t *surf, int32_t x, int32_t y, int32_t len,
@@ -126,6 +198,43 @@ SOL_API void sol_draw_vline(sol_surface_t *surf, int32_t x, int32_t y, int32_t l
                             sol_color_t color);
 SOL_API void sol_draw_line(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
                            sol_color_t color);
+
+/* Gamma & Color Spaces */
+SOL_API uint16_t sol_srgb_to_linear(uint8_t srgb);
+SOL_API uint8_t sol_linear_to_srgb(uint16_t linear);
+
+SOL_API sol_color_t sol_color_from_hsv(uint16_t hue_deg, uint8_t sat, uint8_t val, uint8_t alpha);
+SOL_API void sol_color_to_hsv(sol_color_t color, uint16_t *out_hue, uint8_t *out_sat,
+                              uint8_t *out_val);
+SOL_API sol_color_t sol_color_from_hsl(uint16_t hue_deg, uint8_t sat, uint8_t light, uint8_t alpha);
+SOL_API void sol_color_to_hsl(sol_color_t color, uint16_t *out_hue, uint8_t *out_sat,
+                              uint8_t *out_light);
+
+SOL_API sol_status_t sol_color_from_hex(const char *hex, sol_color_t *out_color);
+SOL_API sol_status_t sol_color_to_hex(sol_color_t color, char *out_buf, size_t buf_size,
+                                      bool include_alpha);
+
+SOL_API uint8_t sol_color_luminance(sol_color_t color);
+SOL_API uint32_t sol_color_contrast_x100(sol_color_t a, sol_color_t b);
+
+/* Advanced Pixel & Gradient Blending */
+SOL_API void sol_blend_pixel_mode(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color,
+                                  sol_blend_mode_t mode);
+SOL_API void sol_fill_rect_blend(sol_surface_t *surf, sol_rect_t rect, sol_color_t color,
+                                 sol_blend_mode_t mode);
+
+SOL_API sol_color_t sol_gradient_eval(const sol_gradient_stop_t *stops, size_t count, uint8_t t,
+                                      bool linear_gamma);
+SOL_API void sol_fill_rect_gradient_linear(sol_surface_t *surf, sol_rect_t rect, int32_t x0,
+                                           int32_t y0, int32_t x1, int32_t y1,
+                                           const sol_gradient_stop_t *stops, size_t stop_count,
+                                           bool linear_gamma);
+SOL_API void sol_fill_rect_gradient_radial(sol_surface_t *surf, sol_rect_t rect, int32_t cx,
+                                           int32_t cy, int32_t radius,
+                                           const sol_gradient_stop_t *stops, size_t stop_count,
+                                           bool linear_gamma);
+SOL_API void sol_fill_rect_gradient_4(sol_surface_t *surf, sol_rect_t rect, sol_color_t tl,
+                                      sol_color_t tr, sol_color_t br, sol_color_t bl);
 
 /* Rectangles, Squares & Gradients */
 SOL_API void sol_fill_rect(sol_surface_t *surf, sol_rect_t rect, sol_color_t color);

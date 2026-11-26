@@ -6,6 +6,8 @@
 PROJECT      := solsticesfg
 HEADER_NAME  := solsticesfg.h
 VERSION      := 0.1.0
+export LC_ALL   := C
+export LANGUAGE := C
 
 # ------------------------------------------------------------------------------
 # 1. OS, Architecture & Shell Detection
@@ -82,8 +84,10 @@ DESTDIR       ?=
 
 ifeq ($(V),1)
     Q :=
+    SUBMAKE_FLAGS :=
 else
     Q := @
+    SUBMAKE_FLAGS := --no-print-directory -s
 endif
 
 # ------------------------------------------------------------------------------
@@ -326,7 +330,7 @@ test-no-stdio:
 	$(call LOG,PASS,SOL_NO_STDIO test harness check passed!)
 
 test-freestanding:
-	$(Q)$(MAKE) MODE=freestanding static $(TEST_FS_OBJS)
+	$(Q)$(MAKE) $(SUBMAKE_FLAGS) MODE=freestanding static $(TEST_FS_OBJS)
 	$(call LOG,PASS,Freestanding OS-kernel compilation check passed!)
 
 FUZZ_SRCS  := $(wildcard $(TEST_DIR)/fuzz/fuzz_*.c)

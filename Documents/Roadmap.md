@@ -29,10 +29,10 @@ Status legend:
 - [x] `sol_surface_t` (`pixels`, `width`, `height`, `stride`, active `clip`)
 - [x] `sol_surface_init` with overflow-safe validation (`width > 0`, `height > 0`, `stride >= width`)
 - [x] Scissor/clipping rectangle (`sol_surface_set_clip`, `sol_surface_reset_clip`, `sol_rect_intersect`)
-- [ ] **Clip stack** (`sol_push_clip`, `sol_pop_clip`, `sol_clip_intersect`) using a fixed-depth stack inside `sol_ctx_t` / surface helper (essential for nested UI containers)
-- [ ] **Sub-surface views** (`sol_surface_subview`) creating zero-copy child surfaces pointing into a parent's pixel memory with clamped bounds and stride
-- [ ] **Dirty rectangle tracker** (`sol_dirty_tracker_t`) for tracking modified screen regions and merging overlapping dirty rects (critical for 60+ FPS software DE rendering without redrawing static areas)
-- [ ] Integer geometry primitives: `sol_point_t`, `sol_size_t`, `sol_rect_contains_point`, `sol_rect_union`, `sol_rect_inset`/`pad`
+- [x] **Clip stack** (`sol_push_clip`, `sol_pop_clip`, `sol_clip_intersect`) using a fixed-depth stack inside `sol_ctx_t` / surface helper (essential for nested UI containers)
+- [x] **Sub-surface views** (`sol_surface_subview`) creating zero-copy child surfaces pointing into a parent's pixel memory with clamped bounds and stride
+- [x] **Dirty rectangle tracker** (`sol_dirty_tracker_t`) for tracking modified screen regions and merging overlapping dirty rects (critical for 60+ FPS software DE rendering without redrawing static areas)
+- [x] Integer geometry primitives: `sol_point_t`, `sol_size_t`, `sol_rect_contains_point`, `sol_rect_union`, `sol_rect_inset`/`pad`
 
 ### 1.2 Freestanding Memory & Allocators
 - [x] Overridable memory macros (`SOL_MALLOC`, `SOL_REALLOC`, `SOL_FREE`, `SOL_MEMCPY`, `SOL_MEMSET`, `SOL_MEMMOVE`)
@@ -59,13 +59,13 @@ Status legend:
 - [x] ARGB8888 pack/unpack macros (`SOL_ARGB`, `SOL_RGB`, `SOL_COLOR_A/R/G/B`) and base constants
 - [x] Exact integer `div255` Porter-Duff `SRC_OVER` blending (`sol_color_blend`, `sol_blend_pixel`)
 - [x] Linear color interpolation (`sol_color_lerp`) and alpha modulation (`sol_color_with_alpha`)
-- [ ] **Full Porter-Duff compositing modes** (`sol_blend_mode_t`):
+- [x] **Full Porter-Duff compositing modes** (`sol_blend_mode_t`):
   - `SOL_BLEND_NONE` (direct copy), `SOL_BLEND_SRC_OVER`, `SOL_BLEND_SRC_IN`, `SOL_BLEND_SRC_OUT`, `SOL_BLEND_SRC_ATOP`
   - `SOL_BLEND_DST_OVER`, `SOL_BLEND_ADD` (glow/lights), `SOL_BLEND_MULTIPLY`, `SOL_BLEND_SCREEN`, `SOL_BLEND_OVERLAY`
-- [ ] **Premultiplied Alpha pipeline** (`sol_color_premul`, `sol_color_unpremul`, fast premultiplied `SRC_OVER` without dark-halo artifacts on anti-aliased edges and scaled textures)
-- [ ] **Color space conversions:** RGB <-> HSV, RGB <-> HSL, RGB <-> Hex (`#RRGGBB` / `#AARRGGBB` parser & formatter), Contrast/Luminance helpers (WCAG contrast ratio for readable DE themes)
-- [ ] **Gamma-correct sRGB <-> Linear LUT** (compile-time 256-entry integer LUT for physically accurate anti-aliasing and gradients without float `powf`)
-- [ ] Multi-stop gradients (`sol_gradient_stop_t[]`): linear (arbitrary angle), radial, and 4-corner bilinear gradients
+- [x] **Premultiplied Alpha pipeline** (`sol_color_premul`, `sol_color_unpremul`, fast premultiplied `SRC_OVER` without dark-halo artifacts on anti-aliased edges and scaled textures)
+- [x] **Color space conversions:** RGB <-> HSV, RGB <-> HSL, RGB <-> Hex (`#RRGGBB` / `#AARRGGBB` parser & formatter), Contrast/Luminance helpers (WCAG contrast ratio for readable DE themes)
+- [x] **Gamma-correct sRGB <-> Linear LUT** (compile-time 256-entry integer LUT for physically accurate anti-aliasing and gradients without float `powf`)
+- [x] Multi-stop gradients (`sol_gradient_stop_t[]`): linear (arbitrary angle), radial, and 4-corner bilinear gradients
 
 ---
 
