@@ -18,9 +18,9 @@ Status legend:
 - [x] Pure C99 amalgamation tool (`tools/amalgamate.c`) -> `dist/solsticesfg.h`
 - [x] Dual test runner (every `tests/test_*.c` built & executed against BOTH `libsolsticesfg.a` and `dist/solsticesfg.h`)
 - [x] GitHub Actions CI for Linux (GCC/Clang), Windows (MinGW), ASan/UBSan, Freestanding (`-ffreestanding -nostdlib`), and `.clang-format`
-- [ ] Extend `tools/amalgamate.c` to verify all `.c`/`.h` files in `src/` are accounted for (fail build if a file is accidentally omitted)
-- [ ] Expand CI matrix to include **MSVC (`cl.exe`)**, **macOS (`macos-latest` Clang)**, **FreeBSD (`vmactions/freebsd-vm`)**, and **Valgrind / Cppcheck**
-- [ ] Add `SOL_NO_STDIO` / freestanding-safe test harness mode and fuzzing harness (`tests/fuzz/`) for binary parsers (UTF-8, PSF2, TTF/OTF, PNG/QOI)
+- [x] Extend `tools/amalgamate.c` to verify all `.c`/`.h` files in `src/` are accounted for (fail build if a file is accidentally omitted)
+- [x] Expand CI matrix to include **MSVC (`cl.exe`)**, **macOS (`macos-latest` Clang)**, **FreeBSD (`vmactions/freebsd-vm`)**, and **Valgrind / Cppcheck**
+- [x] Add `SOL_NO_STDIO` / freestanding-safe test harness mode and fuzzing harness (`tests/fuzz/`) for binary parsers (UTF-8, PSF2, TTF/OTF, PNG/QOI)
 
 ---
 
@@ -35,13 +35,13 @@ Status legend:
 - [ ] Integer geometry primitives: `sol_point_t`, `sol_size_t`, `sol_rect_contains_point`, `sol_rect_union`, `sol_rect_inset`/`pad`
 
 ### 1.2 Freestanding Memory & Allocators
-- [ ] Overridable memory macros (`SOL_MALLOC`, `SOL_REALLOC`, `SOL_FREE`, `SOL_MEMCPY`, `SOL_MEMSET`, `SOL_MEMMOVE`)
-- [ ] Pure C99 zero-libc fallbacks (`sol__memcpy`, `sol__memset`, `sol__memmove`, `sol__memcmp`) enabled automatically under `SOL_FREESTANDING`
-- [ ] **Arena / Bump Allocator** (`sol_arena_t`) working over caller-provided static buffers or OS pages (zero fragmentation, instant reset for per-frame UI/path scratch memory)
-- [ ] Overflow-safe math helpers (`sol__add_overflow_i32`, `sol__mul_overflow_sz`, `sol__isqrt64`, fixed-point 16.16 / 24.8 math helpers)
+- [x] Overridable memory macros (`SOL_MALLOC`, `SOL_REALLOC`, `SOL_FREE`, `SOL_MEMCPY`, `SOL_MEMSET`, `SOL_MEMMOVE`)
+- [x] Pure C99 zero-libc fallbacks (`sol__memcpy`, `sol__memset`, `sol__memmove`, `sol__memcmp`) enabled automatically under `SOL_FREESTANDING`
+- [x] **Arena / Bump Allocator** (`sol_arena_t`) working over caller-provided static buffers or OS pages (zero fragmentation, instant reset for per-frame UI/path scratch memory)
+- [x] Overflow-safe math helpers (`sol__add_overflow_i32`, `sol__mul_overflow_sz`, `sol__isqrt64`, fixed-point 16.16 / 24.8 math helpers)
 
 ### 1.3 Multi-Format Framebuffer Conversion
-- [ ] Pixel format enum (`sol_pixel_format_t`):
+- [x] Pixel format enum (`sol_pixel_format_t`):
   - `SOL_FMT_ARGB8888` (canonical internal format: `0xAARRGGBB`)
   - `SOL_FMT_XRGB8888` (Linux DRM/KMS, X11, Windows DIB)
   - `SOL_FMT_RGBA8888` (OpenGL / Wayland / macOS)
@@ -50,8 +50,8 @@ Status legend:
   - `SOL_FMT_RGB888` / `SOL_FMT_BGR888` (24-bit packed framebuffers)
   - `SOL_FMT_RGB565` / `SOL_FMT_BGR565` (16-bit embedded / legacy VESA BIOS)
   - `SOL_FMT_A8` / `SOL_FMT_GRAY8` (8-bit alpha masks & grayscale glyph buffers)
-- [ ] Fast row/surface blitting converters (`sol_convert_row`, `sol_present_to_buffer`) to push canonical `ARGB8888` surfaces into any OS hardware framebuffer
-- [ ] Ordered Bayer 4x4 / 8x8 dithering for clean output on `RGB565` / low-bit-depth displays
+- [x] Fast row/surface blitting converters (`sol_convert_row`, `sol_present_to_buffer`) to push canonical `ARGB8888` surfaces into any OS hardware framebuffer
+- [x] Ordered Bayer 4x4 / 8x8 dithering for clean output on `RGB565` / low-bit-depth displays
 
 ---
 

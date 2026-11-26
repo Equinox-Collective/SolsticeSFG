@@ -1,20 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-
-#ifdef SOL_BUILD_AMALGAMATED
-    #define SOL_IMPLEMENTATION
-#endif
-#include "solsticesfg.h"
-
-static int g_failures = 0;
-
-#define TEST_ASSERT(cond)                                                                          \
-    do {                                                                                           \
-        if (!(cond)) {                                                                             \
-            fprintf(stderr, "FAIL: %s:%d: %s\n", __FILE__, __LINE__, #cond);                       \
-            g_failures++;                                                                          \
-        }                                                                                          \
-    } while (0)
+#include "sol_test.h"
 
 static void test_surface_init_validation(void) {
     uint32_t buf[16];
@@ -38,7 +22,7 @@ static void test_clip_and_clear(void) {
     sol_color_t black = SOL_RGB(0, 0, 0);
     sol_color_t red = SOL_RGB(255, 0, 0);
 
-    memset(buf, 0, sizeof(buf));
+    TEST_MEMZERO(buf, sizeof(buf));
     TEST_ASSERT(sol_surface_init(&surf, buf, 4, 4, 4) == SOL_OK);
 
     sol_clear(&surf, black);
@@ -78,11 +62,6 @@ int main(void) {
     test_clip_and_clear();
     test_rect_intersect();
 
-    if (g_failures > 0) {
-        fprintf(stderr, "Total failures: %d\n", g_failures);
-        return 1;
-    }
-
-    printf("test_core passed (SolsticeSFG v%s)\n", sol_version_string());
+    TEST_REPORT("test_core");
     return 0;
 }

@@ -39,6 +39,12 @@ jobs:
       - name: Run ASan + UBSan Tests
         run: make CC=clang V=1 test-san
 
+      - name: Run Fuzz Smoke Targets (ASan + UBSan)
+        run: make CC=clang MODE=sanitize V=1 fuzz-smoke
+
+      - name: Run SOL_NO_STDIO Tests
+        run: make CC=gcc V=1 test-no-stdio
+
       - name: Verify Freestanding Compilation (-ffreestanding -nostdlib)
         run: make CC=gcc V=1 test-freestanding
 
@@ -66,6 +72,84 @@ jobs:
 
       - name: Build & Run Tests (Release)
         run: make MODE=release V=1 all test
+
+  windows-msvc:
+    name: Windows (MSVC cl.exe)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build Amalgamator & Generate Single-Header
+        run: |
+          if not exist build\msvc mkdir build\msvc
+          cl /nologo /std:c11 /W4 /WX /O2 /D_CRT_SECURE_NO_WARNINGS tools\amalgamate.c /Fe:build\msvc\amalgamate.exe
+          build\msvc\amalgamate.exe include src dist\solsticesfg.h
+
+      - name: Build & Run Modular Tests (MSVC /W4 /WX)
+        run: |
+          for %%f in (tests\test_*.c) do (
+            cl /nologo /std:c11 /W4 /WX /O2 /Iinclude /Isrc /Itests /DSOL_BUILD_MODULAR %%f src\*.c /Fe:build\msvc\mod_%%~nf.exe || exit /b 1
+            build\msvc\mod_%%~nf.exe || exit /b 1
+          )
+
+      - name: Build & Run Amalgamated Tests (MSVC /W4 /WX)
+        run: |
+          for %%f in (tests\test_*.c) do (
+            cl /nologo /std:c11 /W4 /WX /O2 /Idist /Itests /DSOL_BUILD_AMALGAMATED %%f /Fe:build\msvc\amg_%%~nf.exe || exit /b 1
+            build\msvc\amg_%%~nf.exe || exit /b 1
+          )
+
+  macos:
+    name: macOS (Clang / ${{ matrix.mode }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [debug, release]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build & Run Tests (Modular + Amalgamated)
+        run: make CC=clang MODE=${{ matrix.mode }} V=1 all test
+
+  freebsd:
+    name: FreeBSD (Clang)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build & Run Tests in FreeBSD VM
+        uses: vmactions/freebsd-vm@v1
+        with:
+          prepare: pkg install -y gmake
+          run: |
+            gmake CC=clang MODE=debug V=1 all test
+            gmake CC=clang MODE=release V=1 all test
+
+  valgrind-and-lint:
+    name: Valgrind & Cppcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Valgrind & Cppcheck
+        run: sudo apt-get update && sudo apt-get install -y valgrind cppcheck
+
+      - name: Run Valgrind Memory Check
+        run: make V=1 valgrind
+
+      - name: Run Cppcheck Static Analysis
+        run: make V=1 lint
 
   format-check:
     name: Code Style (.clang-format)

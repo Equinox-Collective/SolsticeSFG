@@ -1,3 +1,9 @@
+#ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+#else
+    #include <dirent.h>
+#endif
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +13,87 @@ static const char *const k_public_headers[] = {"solsticesfg.h"};
 
 static const char *const k_internal_headers[] = {"sol_internal.h"};
 
-static const char *const k_source_files[] = {"sol_core.c", "sol_blend.c", "sol_draw.c"};
+static const char *const k_source_files[] = {"sol_core.c", "sol_blend.c", "sol_draw.c",
+                                             "sol_alloc.c", "sol_format.c"};
+
+static int has_c_or_h_ext(const char *name) {
+    size_t len = strlen(name);
+    if (len < 3) {
+        return 0;
+    }
+    return (strcmp(name + len - 2, ".c") == 0) || (strcmp(name + len - 2, ".h") == 0);
+}
+
+static int in_list(const char *name, const char *const *list, size_t count) {
+    size_t i;
+    for (i = 0; i < count; ++i) {
+        if (strcmp(name, list[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int verify_dir_files(const char *dir, const char *const *list_a, size_t count_a,
+                            const char *const *list_b, size_t count_b) {
+    int ok = 0;
+
+#ifdef _WIN32
+    char pattern[1024];
+    WIN32_FIND_DATAA ffd;
+    HANDLE hfind;
+
+    if (snprintf(pattern, sizeof(pattern), "%s\\*", dir) >= (int)sizeof(pattern)) {
+        fprintf(stderr, "amalgamate: directory path too long: %s\n", dir);
+        return -1;
+    }
+    hfind = FindFirstFileA(pattern, &ffd);
+    if (hfind == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "amalgamate: failed to scan directory '%s'\n", dir);
+        return -1;
+    }
+    do {
+        if ((ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+            continue;
+        }
+        if (has_c_or_h_ext(ffd.cFileName)) {
+            if (!in_list(ffd.cFileName, list_a, count_a) &&
+                !in_list(ffd.cFileName, list_b, count_b)) {
+                fprintf(stderr,
+                        "amalgamate: error: '%s/%s' is not registered in tools/amalgamate.c\n", dir,
+                        ffd.cFileName);
+                ok = -1;
+            }
+        }
+    } while (FindNextFileA(hfind, &ffd) != 0);
+    FindClose(hfind);
+#else
+    DIR *dp = opendir(dir);
+    const struct dirent *ent;
+
+    if (dp == NULL) {
+        fprintf(stderr, "amalgamate: failed to open directory '%s'\n", dir);
+        return -1;
+    }
+    while ((ent = readdir(dp)) != NULL) {
+        const char *name = ent->d_name;
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+            continue;
+        }
+        if (has_c_or_h_ext(name)) {
+            if (!in_list(name, list_a, count_a) && !in_list(name, list_b, count_b)) {
+                fprintf(stderr,
+                        "amalgamate: error: '%s/%s' is not registered in tools/amalgamate.c\n", dir,
+                        name);
+                ok = -1;
+            }
+        }
+    }
+    closedir(dp);
+#endif
+
+    return ok;
+}
 
 static int is_local_sol_include(const char *line) {
     const char *p = line;
@@ -75,6 +161,17 @@ int main(int argc, char **argv) {
     inc_dir = argv[1];
     src_dir = argv[2];
     out_path = argv[3];
+
+    if (verify_dir_files(inc_dir, k_public_headers,
+                         sizeof(k_public_headers) / sizeof(k_public_headers[0]), NULL, 0) != 0) {
+        return 1;
+    }
+
+    if (verify_dir_files(src_dir, k_internal_headers,
+                         sizeof(k_internal_headers) / sizeof(k_internal_headers[0]), k_source_files,
+                         sizeof(k_source_files) / sizeof(k_source_files[0])) != 0) {
+        return 1;
+    }
 
     out = fopen(out_path, "wb");
     if (out == NULL) {

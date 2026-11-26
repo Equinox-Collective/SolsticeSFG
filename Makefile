@@ -140,7 +140,8 @@ BENCH_RUNS    := $(addprefix run-bench-,$(BENCH_NAMES))
 
 ALL_FMT_FILES := $(wildcard $(INC_DIR)/*.h $(SRC_DIR)/*.c $(SRC_DIR)/*.h \
                  $(BACKEND_DIR)/*.c $(BACKEND_DIR)/*.h $(TOOLS_DIR)/*.c \
-                 $(TEST_DIR)/*.c $(TEST_DIR)/*.h $(EX_DIR)/*.c $(BENCH_DIR)/*.c)
+                 $(TEST_DIR)/*.c $(TEST_DIR)/*.h $(TEST_DIR)/fuzz/*.c \
+                 $(EX_DIR)/*.c $(BENCH_DIR)/*.c)
 
 # ------------------------------------------------------------------------------
 # 4. Compiler & Linker Flags
@@ -201,8 +202,8 @@ AMALG_TEST_CFLAGS := $(CSTD) $(WARN_FLAGS) $(MODE_CFLAGS) $(EXTRA_CFLAGS) \
 # 5. Default & Phony Targets
 # ------------------------------------------------------------------------------
 .PHONY: all lib static shared amalgamate test test-modular test-amalgamated \
-        test-san test-freestanding valgrind examples bench format format-check \
-        lint install uninstall clean distclean info help \
+        test-san test-freestanding test-no-stdio fuzz-smoke valgrind examples \
+        bench format format-check lint install uninstall clean distclean info help \
         $(TEST_MOD_RUNS) $(TEST_AMG_RUNS) $(BENCH_RUNS)
 
 all: static amalgamate
@@ -308,13 +309,38 @@ $(TEST_AMG_RUNS): run-amg-%: $(TEST_BIN_DIR)/amg_%$(EXE)
 	$(Q)$(call RUN_PATH,$<)
 endif
 
-# Convenience shortcuts for Sanitizer & Freestanding checks
+# Convenience shortcuts for Sanitizer, No-Stdio, Freestanding & Fuzz Smoke checks
 test-san:
 	$(Q)$(MAKE) MODE=sanitize test
 
+test-no-stdio:
+	$(Q)$(MAKE) EXTRA_CFLAGS="$(EXTRA_CFLAGS) -DSOL_NO_STDIO" test
+	$(call LOG,PASS,SOL_NO_STDIO test harness check passed!)
+
 test-freestanding:
 	$(Q)$(MAKE) MODE=freestanding static
+	$(Q)$(call MKDIR_P,$(BUILD_ROOT)/freestanding/tests)
+	$(Q)for f in $(TEST_SRCS); do \
+		$(CC) $(CPPFLAGS) -I$(TEST_DIR) $(CSTD) $(WARN_FLAGS) -O2 -ffreestanding -nostdlib \
+			-DSOL_FREESTANDING -DSOL_NO_STDIO -c $$f \
+			-o $(BUILD_ROOT)/freestanding/tests/$$(basename $$f .c).o; \
+	done
 	$(call LOG,PASS,Freestanding OS-kernel compilation check passed!)
+
+FUZZ_SRCS := $(wildcard $(TEST_DIR)/fuzz/fuzz_*.c)
+FUZZ_BINS := $(patsubst $(TEST_DIR)/fuzz/%.c,$(BUILD_DIR)/fuzz/%$(EXE),$(FUZZ_SRCS))
+
+fuzz-smoke: $(STATIC_LIB) $(FUZZ_BINS)
+	$(Q)for bin in $(FUZZ_BINS); do \
+		echo "  FUZZ-SMOKE $$bin"; \
+		$(call RUN_PATH,$$bin); \
+	done
+	$(call LOG,PASS,All fuzz smoke targets passed!)
+
+$(BUILD_DIR)/fuzz/%$(EXE): $(TEST_DIR)/fuzz/%.c $(STATIC_LIB)
+	$(Q)$(call MKDIR_P,$(BUILD_DIR)/fuzz)
+	$(call LOG,CC-FUZZ,$<)
+	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -DSOL_FUZZ_STANDALONE $< $(STATIC_LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 valgrind: $(TEST_MOD_BINS)
 ifeq ($(strip $(TEST_MOD_BINS)),)
@@ -390,6 +416,8 @@ lint:
 	$(call LOG,LINT,Running cppcheck static analysis...)
 	$(Q)$(CPPCHECK) --enable=warning,style,performance,portability \
 		--std=c99 --error-exitcode=1 --inline-suppr \
+		-USOL_MALLOC -USOL_REALLOC -USOL_FREE \
+		-USOL_MEMCPY -USOL_MEMSET -USOL_MEMMOVE -USOL_MEMCMP \
 		-I$(INC_DIR) -I$(SRC_DIR) $(SRC_DIR) $(TOOLS_DIR)
 
 # ------------------------------------------------------------------------------
@@ -441,7 +469,9 @@ help:
 	@echo   make test-modular      - Run tests linked against $(STATIC_LIB)
 	@echo   make test-amalgamated  - Run tests against $(DIST_HEADER) only
 	@echo   make test-san          - Run all tests with ASan + UBSan
+	@echo   make test-no-stdio     - Run all tests with SOL_NO_STDIO
 	@echo   make test-freestanding - Verify zero-libc compilation (-ffreestanding)
+	@echo   make fuzz-smoke        - Build and run standalone fuzz smoke targets
 	@echo   make valgrind          - Run modular tests under Valgrind (Unix)
 	@echo   make examples          - Build programs in $(EX_DIR)/
 	@echo   make bench             - Build and run benchmarks in release mode

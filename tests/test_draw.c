@@ -1,20 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-
-#ifdef SOL_BUILD_AMALGAMATED
-    #define SOL_IMPLEMENTATION
-#endif
-#include "solsticesfg.h"
-
-static int g_failures = 0;
-
-#define TEST_ASSERT(cond)                                                                          \
-    do {                                                                                           \
-        if (!(cond)) {                                                                             \
-            fprintf(stderr, "FAIL: %s:%d: %s\n", __FILE__, __LINE__, #cond);                       \
-            g_failures++;                                                                          \
-        }                                                                                          \
-    } while (0)
+#include "sol_test.h"
 
 static void test_alpha_blending(void) {
     uint32_t buf[4 * 4];
@@ -154,11 +138,6 @@ int main(void) {
     test_triangle_zero_overdraw();
     test_rounded_rect_and_ellipse();
 
-    if (g_failures > 0) {
-        fprintf(stderr, "Total failures: %d\n", g_failures);
-        return 1;
-    }
-
-    printf("test_draw passed\n");
+    TEST_REPORT("test_draw");
     return 0;
 }
