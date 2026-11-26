@@ -117,7 +117,7 @@ SRC_FILES     := $(wildcard $(SRC_DIR)/*.c)
 SRC_HEADERS   := $(wildcard $(SRC_DIR)/*.h)
 BACKEND_SRCS  := $(wildcard $(BACKEND_DIR)/*.c)
 TEST_SRCS     := $(wildcard $(TEST_DIR)/test_*.c)
-EX_SRCS       := $(wildcard $(EX_DIR)/*.c)
+EX_SRCS       := $(filter-out $(EX_DIR)/sandbox.c,$(wildcard $(EX_DIR)/*.c))
 BENCH_SRCS    := $(wildcard $(BENCH_DIR)/*.c)
 
 AMALG_SRC     := $(TOOLS_DIR)/amalgamate.c
@@ -205,7 +205,7 @@ AMALG_TEST_CFLAGS := $(CSTD) $(WARN_FLAGS) $(MODE_CFLAGS) $(EXTRA_CFLAGS) \
 # ------------------------------------------------------------------------------
 # 5. Default & Phony Targets
 # ------------------------------------------------------------------------------
-.PHONY: all lib static shared amalgamate test test-modular test-amalgamated \
+.PHONY: all lib static shared amalgamate test test-modular test-amalgamated sandbox \
         test-san test-freestanding test-no-stdio fuzz-smoke valgrind examples \
         bench format format-check lint install uninstall clean distclean info help \
         $(TEST_MOD_RUNS) $(TEST_AMG_RUNS) $(BENCH_RUNS) $(FUZZ_RUNS)
@@ -405,6 +405,29 @@ $(BENCH_BIN_DIR)/%$(EXE): $(BENCH_DIR)/%.c $(STATIC_LIB)
 	$(Q)$(call MKDIR_P,$(BENCH_BIN_DIR))
 	$(call LOG,CC-BNCH,$<)
 	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) $< $(STATIC_LIB) $(LDFLAGS) $(LDLIBS) -o $@
+
+SANDBOX_BIN := $(BIN_DIR)/sandbox$(EXE)
+
+ifeq ($(IS_WINDOWS),1)
+    BACKEND_SRC  := $(BACKEND_DIR)/sol_backend_win32.c
+    BACKEND_LIBS := -lgdi32 -luser32
+else
+    BACKEND_SRC  :=
+    BACKEND_LIBS :=
+endif
+
+sandbox: $(STATIC_LIB) $(EX_DIR)/sandbox.c $(BACKEND_SRC)
+ifeq ($(strip $(BACKEND_SRC)),)
+	$(call LOG,INFO,No window backend configured for this OS yet.)
+else
+	$(Q)$(call MKDIR_P,$(BIN_DIR))
+	$(call LOG,CC-APP,sandbox)
+	$(Q)$(CC) $(CPPFLAGS) -I$(BACKEND_DIR) $(CFLAGS) \
+		$(EX_DIR)/sandbox.c $(BACKEND_SRC) $(STATIC_LIB) \
+		$(LDFLAGS) $(LDLIBS) $(BACKEND_LIBS) -o $(SANDBOX_BIN)
+	$(call LOG,RUN,sandbox)
+	$(Q)$(call RUN_PATH,$(SANDBOX_BIN))
+endif
 
 # ------------------------------------------------------------------------------
 # 10. Code Quality, Formatting & Static Analysis
