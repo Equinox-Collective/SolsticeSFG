@@ -116,8 +116,8 @@ void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t
         return;
     }
 
-    r_fp8 = thickness * 128; /* thickness / 2 in 1/256 px */
-    pad = (thickness / 2) + 2;
+    r_fp8 = thickness * 128;
+    pad = (thickness * 3) / 4 + 2;
 
     if (x0 == x1 && y0 == y1) {
         if (cap == SOL_CAP_ROUND) {
@@ -168,7 +168,7 @@ void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t
                 int64_t py = (int64_t)y - (int64_t)y0;
                 int64_t dot = px * dx + py * dy;
                 int64_t cross = px * dy - py * dx;
-                int64_t dist_perp_fp8 = ((cross < 0 ? -cross : cross) << 8) / (int64_t)len_fp8;
+                int64_t dist_perp_fp8 = ((cross < 0 ? -cross : cross) << 16) / (int64_t)len_fp8;
                 int64_t dist_fp8;
 
                 if (cap == SOL_CAP_ROUND) {
@@ -182,7 +182,7 @@ void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t
                         dist_fp8 = dist_perp_fp8;
                     }
                 } else {
-                    int64_t along_fp8 = (dot << 8) / (int64_t)len_fp8;
+                    int64_t along_fp8 = (dot << 16) / (int64_t)len_fp8;
                     int64_t max_along_fp8 = (int64_t)len_fp8;
                     int64_t ext = (cap == SOL_CAP_SQUARE) ? (int64_t)r_fp8 : 0;
                     int64_t cap_dist = 0;

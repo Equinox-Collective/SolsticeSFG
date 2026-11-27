@@ -76,27 +76,27 @@ Status legend:
 - [x] Rounded rectangles (`sol_fill_rounded_rect`, `sol_draw_rounded_rect`)
 - [x] Zero-overdraw circles & ellipses (`sol_fill_circle`, `sol_draw_circle`, `sol_fill_ellipse`, `sol_draw_ellipse`)
 - [x] Zero-overdraw scanline triangles (`sol_draw_triangle`, `sol_fill_triangle`)
-- [ ] **Per-corner rounded rectangles** (`sol_rounded_rect_ex` with independent `[tl, tr, br, bl]` radii — e.g. top-rounded window titlebars, pill tabs)
-- [ ] **Dashed / dotted lines** (`sol_draw_line_dashed` with pattern bitmask or dash/gap array)
-- [ ] **Arcs, rings & pie sectors** (`sol_draw_arc`, `sol_fill_pie`, `sol_fill_ring` — gauges, loading spinners, charts)
+- [x] **Per-corner rounded rectangles** (`sol_rounded_rect_ex` with independent `[tl, tr, br, bl]` radii — e.g. top-rounded window titlebars, pill tabs)
+- [x] **Dashed / dotted lines** (`sol_draw_line_dashed` with pattern bitmask or dash/gap array)
+- [x] **Arcs, rings & pie sectors** (`sol_draw_arc`, `sol_fill_pie`, `sol_fill_ring` — gauges, loading spinners, charts)
 
 ### 3.2 Anti-Aliased (AA) & Subpixel Primitives (Essential for Modern DE)
-- [ ] **Xiaolin Wu anti-aliased lines** (`sol_draw_line_aa`) with fractional coverage blending
-- [ ] **Thick anti-aliased lines** (`sol_draw_line_thick_aa`) with selectable end caps (`BUTT`, `ROUND`, `SQUARE`)
-- [ ] **Anti-aliased circles, rings & ellipses** (`sol_fill_circle_aa`, `sol_draw_circle_aa`, `sol_fill_ellipse_aa`) via exact distance/supersampled coverage
-- [ ] **Anti-aliased rounded rectangles** (`sol_fill_rounded_rect_aa`, `sol_draw_rounded_rect_aa`, borders with arbitrary thickness) via integer SDF coverage (zero ugly jagged corners!)
-- [ ] **Anti-aliased triangles** (`sol_fill_triangle_aa`) via edge-function supersampling (4x4 / 8x8 RGSS pattern or analytical edge coverage)
+- [x] **Xiaolin Wu anti-aliased lines** (`sol_draw_line_aa`) with fractional coverage blending
+- [x] **Thick anti-aliased lines** (`sol_draw_line_thick_aa`) with selectable end caps (`BUTT`, `ROUND`, `SQUARE`)
+- [x] **Anti-aliased circles, rings & ellipses** (`sol_fill_circle_aa`, `sol_draw_circle_aa`, `sol_fill_ellipse_aa`) via exact distance/supersampled coverage
+- [x] **Anti-aliased rounded rectangles** (`sol_fill_rounded_rect_aa`, `sol_draw_rounded_rect_aa`, borders with arbitrary thickness) via integer SDF coverage (zero ugly jagged corners!)
+- [x] **Anti-aliased triangles** (`sol_fill_triangle_aa`) via edge-function supersampling (4x4 / 8x8 RGSS pattern or analytical edge coverage)
 
 ### 3.3 Vector Paths, Curves & Arbitrary Polygons
-- [ ] **Bezier curves:** Quadratic (`sol_draw_quad_bezier`) & Cubic (`sol_draw_cubic_bezier`) with adaptive flatness subdivision (zero floats or fixed-point)
-- [ ] **Path builder API** (`sol_path_t` backed by `sol_arena_t`): `move_to`, `line_to`, `quad_to`, `cubic_to`, `arc_to`, `close_path`
-- [ ] **Polygon scanline rasterizer** (`sol_fill_polygon`) supporting concave & self-intersecting polygons with **Even-Odd** and **Non-Zero Winding** fill rules + optional 4x/8x vertical supersampled anti-aliasing
-- [ ] **Stroke expander:** convert open/closed polylines into thick strokes with **Miter**, **Bevel**, and **Round** line joins
+- [x] **Bezier curves:** Quadratic (`sol_draw_quad_bezier`) & Cubic (`sol_draw_cubic_bezier`) with adaptive flatness subdivision (zero floats or fixed-point)
+- [x] **Path builder API** (`sol_path_t` backed by `sol_arena_t`): `move_to`, `line_to`, `quad_to`, `cubic_to`, `arc_to`, `close_path`
+- [x] **Polygon scanline rasterizer** (`sol_fill_polygon`) supporting concave & self-intersecting polygons with **Even-Odd** and **Non-Zero Winding** fill rules + optional 4x/8x vertical supersampled anti-aliasing
+- [x] **Stroke expander:** convert open/closed polylines into thick strokes with **Miter**, **Bevel**, and **Round** line joins
 
 ### 3.4 UI Visual Effects (DE / Compositor Grade)
-- [ ] **Fast Blur (`sol_blur_rect`):** O(1) per-pixel StackBlur / 3-pass Box Blur approximation inside a clipped surface region (glassmorphism / frosted backdrop blur for DE panels & menus!)
-- [ ] **Soft Drop Shadows (`sol_draw_box_shadow`):** fast analytic rounded-box shadow with configurable `offset_x`, `offset_y`, `blur_radius`, `spread`, and `color` (no full blur pass needed!)
-- [ ] **Noise / Grain overlay** (subtle deterministic PRNG dither to eliminate gradient banding on dark DE wallpapers)
+- [x] **Fast Blur (`sol_blur_rect`):** O(1) per-pixel StackBlur / 3-pass Box Blur approximation inside a clipped surface region (glassmorphism / frosted backdrop blur for DE panels & menus!)
+- [x] **Soft Drop Shadows (`sol_draw_box_shadow`):** fast analytic rounded-box shadow with configurable `offset_x`, `offset_y`, `blur_radius`, `spread`, and `color` (no full blur pass needed!)
+- [x] **Noise / Grain overlay** (subtle deterministic PRNG dither to eliminate gradient banding on dark DE wallpapers)
 
 ---
 

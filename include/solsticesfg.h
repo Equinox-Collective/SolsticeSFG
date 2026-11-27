@@ -420,6 +420,69 @@ SOL_API sol_status_t sol_present_to_buffer(void *dst_pixels, int32_t dst_stride_
                                            sol_pixel_format_t dst_fmt, const sol_surface_t *src,
                                            bool dither);
 
+/* ============================================================================
+ * Phase 3.3: Vector Paths, Bezier Curves, Polygons & Stroke Expander
+ * ============================================================================ */
+
+typedef enum sol_fill_rule { SOL_FILL_EVEN_ODD = 0, SOL_FILL_NON_ZERO } sol_fill_rule_t;
+
+typedef enum sol_line_join { SOL_JOIN_MITER = 0, SOL_JOIN_BEVEL, SOL_JOIN_ROUND } sol_line_join_t;
+
+#define SOL_PATH_CHUNK_CAP 32
+
+typedef struct sol_path_chunk {
+    sol_point_t pts[SOL_PATH_CHUNK_CAP];
+    size_t count;
+    struct sol_path_chunk *next;
+} sol_path_chunk_t;
+
+typedef struct sol_path_subpath {
+    sol_path_chunk_t *head;
+    sol_path_chunk_t *tail;
+    size_t point_count;
+    bool closed;
+    struct sol_path_subpath *next;
+} sol_path_subpath_t;
+
+typedef struct sol_path {
+    sol_arena_t *arena;
+    sol_path_subpath_t *subpaths;
+    sol_path_subpath_t *curr;
+    sol_point_t curr_pt;
+    bool has_curr;
+    bool oom;
+} sol_path_t;
+
+/* Standalone Bezier Curves */
+SOL_API void sol_draw_quad_bezier(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t cx,
+                                  int32_t cy, int32_t x1, int32_t y1, sol_color_t color, bool aa);
+SOL_API void sol_draw_cubic_bezier(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t c1x,
+                                   int32_t c1y, int32_t c2x, int32_t c2y, int32_t x1, int32_t y1,
+                                   sol_color_t color, bool aa);
+
+/* Path Builder (Arena-backed, zero heap malloc) */
+SOL_API sol_status_t sol_path_init(sol_path_t *path, sol_arena_t *arena);
+SOL_API void sol_path_reset(sol_path_t *path);
+SOL_API sol_status_t sol_path_move_to(sol_path_t *path, int32_t x, int32_t y);
+SOL_API sol_status_t sol_path_line_to(sol_path_t *path, int32_t x, int32_t y);
+SOL_API sol_status_t sol_path_quad_to(sol_path_t *path, int32_t cx, int32_t cy, int32_t x,
+                                      int32_t y);
+SOL_API sol_status_t sol_path_cubic_to(sol_path_t *path, int32_t c1x, int32_t c1y, int32_t c2x,
+                                       int32_t c2y, int32_t x, int32_t y);
+SOL_API sol_status_t sol_path_arc_to(sol_path_t *path, int32_t cx, int32_t cy, int32_t rx,
+                                     int32_t ry, int32_t start_deg, int32_t end_deg);
+SOL_API sol_status_t sol_path_close(sol_path_t *path);
+
+/* Polygon & Path Rasterization */
+SOL_API void sol_fill_polygon(sol_surface_t *surf, const sol_point_t *pts, size_t count,
+                              sol_fill_rule_t rule, sol_color_t color, sol_arena_t *scratch,
+                              bool aa);
+SOL_API void sol_fill_path(sol_surface_t *surf, const sol_path_t *path, sol_fill_rule_t rule,
+                           sol_color_t color, sol_arena_t *scratch, bool aa);
+SOL_API void sol_stroke_path(sol_surface_t *surf, const sol_path_t *path, int32_t thickness,
+                             sol_line_cap_t cap, sol_line_join_t join, sol_color_t color,
+                             sol_arena_t *scratch);
+
 #ifdef __cplusplus
 }
 #endif
