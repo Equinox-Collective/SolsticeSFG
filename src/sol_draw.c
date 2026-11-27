@@ -860,3 +860,353 @@ void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, 
         }
     }
 }
+
+SOL_PRIVATE int32_t sol__atan2_deg(int64_t dy, int64_t dx) {
+    uint64_t ax = (uint64_t)(dx < 0 ? -dx : dx);
+    uint64_t ay = (uint64_t)(dy < 0 ? -dy : dy);
+    int32_t base_deg;
+
+    if (ax == 0u && ay == 0u) {
+        return 0;
+    }
+
+    if (ax >= ay) {
+        uint64_t t = (ay * 1024u) / ax;
+        base_deg = (int32_t)((45u * t) / 1024u + (t * (1024u - t) * 16u) / (1024u * 1024u));
+    } else {
+        uint64_t t = (ax * 1024u) / ay;
+        base_deg = 90 - (int32_t)((45u * t) / 1024u + (t * (1024u - t) * 16u) / (1024u * 1024u));
+    }
+
+    if (dx >= 0 && dy >= 0) {
+        return base_deg;
+    }
+    if (dx < 0 && dy >= 0) {
+        return 180 - base_deg;
+    }
+    if (dx < 0 && dy < 0) {
+        return 180 + base_deg;
+    }
+    return (base_deg == 0) ? 0 : (360 - base_deg);
+}
+
+SOL_PRIVATE bool sol__angle_in_range(int32_t deg, int32_t start_deg, int32_t span_deg) {
+    int32_t rel = (deg - start_deg) % 360;
+    if (rel < 0) {
+        rel += 360;
+    }
+    return rel <= span_deg;
+}
+
+SOL_PRIVATE void sol__normalize_corners(sol_corner_radii_t *cr, int32_t w, int32_t h) {
+    if (cr->tl < 0) {
+        cr->tl = 0;
+    }
+    if (cr->tr < 0) {
+        cr->tr = 0;
+    }
+    if (cr->br < 0) {
+        cr->br = 0;
+    }
+    if (cr->bl < 0) {
+        cr->bl = 0;
+    }
+
+    if (cr->tl + cr->tr > w) {
+        int32_t s = cr->tl + cr->tr;
+        cr->tl = (int32_t)(((int64_t)cr->tl * w) / s);
+        cr->tr = w - cr->tl;
+    }
+    if (cr->bl + cr->br > w) {
+        int32_t s = cr->bl + cr->br;
+        cr->bl = (int32_t)(((int64_t)cr->bl * w) / s);
+        cr->br = w - cr->bl;
+    }
+    if (cr->tl + cr->bl > h) {
+        int32_t s = cr->tl + cr->bl;
+        cr->tl = (int32_t)(((int64_t)cr->tl * h) / s);
+        cr->bl = h - cr->tl;
+    }
+    if (cr->tr + cr->br > h) {
+        int32_t s = cr->tr + cr->br;
+        cr->tr = (int32_t)(((int64_t)cr->tr * h) / s);
+        cr->br = h - cr->tr;
+    }
+}
+
+void sol_fill_rounded_rect_ex(sol_surface_t *surf, sol_rect_t rect, sol_corner_radii_t radii,
+                              sol_color_t color) {
+    sol_rect_t r;
+    int32_t row;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 ||
+        SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    sol__normalize_corners(&radii, rect.w, rect.h);
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 0 || r.h <= 0) {
+        return;
+    }
+
+    for (row = r.y; row < r.y + r.h; ++row) {
+        int32_t local_y = row - rect.y;
+        int32_t left_inset = 0;
+        int32_t right_inset = 0;
+
+        if (radii.tl > 0 && local_y < radii.tl) {
+            int64_t dy = (int64_t)radii.tl - (int64_t)local_y;
+            int32_t dx = (int32_t)sol__isqrt64((uint64_t)radii.tl * (uint64_t)radii.tl -
+                                               (uint64_t)(dy * dy));
+            left_inset = radii.tl - dx;
+        } else if (radii.bl > 0 && local_y >= rect.h - radii.bl) {
+            int64_t dy = (int64_t)local_y - (int64_t)(rect.h - 1 - radii.bl);
+            int32_t dx = (int32_t)sol__isqrt64((uint64_t)radii.bl * (uint64_t)radii.bl -
+                                               (uint64_t)(dy * dy));
+            left_inset = radii.bl - dx;
+        }
+
+        if (radii.tr > 0 && local_y < radii.tr) {
+            int64_t dy = (int64_t)radii.tr - (int64_t)local_y;
+            int32_t dx = (int32_t)sol__isqrt64((uint64_t)radii.tr * (uint64_t)radii.tr -
+                                               (uint64_t)(dy * dy));
+            right_inset = radii.tr - dx;
+        } else if (radii.br > 0 && local_y >= rect.h - radii.br) {
+            int64_t dy = (int64_t)local_y - (int64_t)(rect.h - 1 - radii.br);
+            int32_t dx = (int32_t)sol__isqrt64((uint64_t)radii.br * (uint64_t)radii.br -
+                                               (uint64_t)(dy * dy));
+            right_inset = radii.br - dx;
+        }
+
+        {
+            int32_t x0 = (int32_t)SOL_MAX((int64_t)rect.x + left_inset, (int64_t)r.x);
+            int32_t x1 = (int32_t)SOL_MIN((int64_t)rect.x + rect.w - 1 - right_inset,
+                                          (int64_t)r.x + r.w - 1);
+            if (x0 <= x1) {
+                sol__draw_hline_clipped(surf, x0, x1, row, color);
+            }
+        }
+    }
+}
+
+void sol_draw_line_dashed(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                          int32_t dash_len, int32_t gap_len, sol_color_t color) {
+    int64_t dx;
+    int64_t dy;
+    int32_t sx;
+    int32_t sy;
+    int64_t err;
+    int32_t period;
+    int32_t step = 0;
+
+    if (surf == NULL || surf->pixels == NULL || dash_len <= 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (gap_len <= 0) {
+        sol_draw_line(surf, x0, y0, x1, y1, color);
+        return;
+    }
+
+    dx = (int64_t)x1 - (int64_t)x0;
+    dy = (int64_t)y1 - (int64_t)y0;
+    if (dx < 0) {
+        dx = -dx;
+    }
+    if (dy < 0) {
+        dy = -dy;
+    }
+    /* Guard extreme unclipped dashed spans */
+    if (dx > 65536 || dy > 65536) {
+        sol_draw_line(surf, x0, y0, x1, y1, color);
+        return;
+    }
+
+    sx = x0 < x1 ? 1 : -1;
+    sy = y0 < y1 ? 1 : -1;
+    err = dx - dy;
+    period = dash_len + gap_len;
+
+    for (;;) {
+        if ((step % period) < dash_len) {
+            sol__draw_plot(surf, x0, y0, color);
+        }
+        if (x0 == x1 && y0 == y1) {
+            break;
+        }
+        {
+            int64_t e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                y0 += sy;
+            }
+        }
+        step++;
+    }
+}
+
+void sol_draw_arc(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius, int32_t start_deg,
+                  int32_t end_deg, sol_color_t color) {
+    int32_t span;
+    int32_t s_norm;
+    int32_t x;
+    int32_t y;
+    int32_t err;
+
+    if (surf == NULL || surf->pixels == NULL || radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    span = end_deg - start_deg;
+    if (span <= 0) {
+        return;
+    }
+    if (span >= 360) {
+        sol_draw_circle(surf, cx, cy, radius, color);
+        return;
+    }
+
+    s_norm = start_deg % 360;
+    if (s_norm < 0) {
+        s_norm += 360;
+    }
+
+    if (radius == 0) {
+        sol__draw_plot(surf, cx, cy, color);
+        return;
+    }
+
+    x = 0;
+    y = radius;
+    err = 1 - radius;
+
+    {
+        int32_t pts[4][2] = {{0, -radius}, {0, radius}, {-radius, 0}, {radius, 0}};
+        int i;
+        for (i = 0; i < 4; ++i) {
+            if (sol__angle_in_range(sol__atan2_deg(pts[i][1], pts[i][0]), s_norm, span)) {
+                sol__draw_plot(surf, cx + pts[i][0], cy + pts[i][1], color);
+            }
+        }
+    }
+
+    while (x < y) {
+        if (err < 0) {
+            err += 2 * x + 3;
+        } else {
+            err += 2 * (x - y) + 5;
+            y--;
+        }
+        x++;
+        if (x > y) {
+            break;
+        }
+
+        {
+            int32_t oct[8][2] = {{x, y}, {-x, y}, {x, -y}, {-x, -y},
+                                 {y, x}, {-y, x}, {y, -x}, {-y, -x}};
+            int count = (x == y) ? 4 : 8;
+            int i;
+            for (i = 0; i < count; ++i) {
+                if (sol__angle_in_range(sol__atan2_deg(oct[i][1], oct[i][0]), s_norm, span)) {
+                    sol__draw_plot(surf, cx + oct[i][0], cy + oct[i][1], color);
+                }
+            }
+        }
+    }
+}
+
+void sol_fill_pie(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius, int32_t start_deg,
+                  int32_t end_deg, sol_color_t color) {
+    int32_t span;
+    int32_t s_norm;
+    int32_t y_min;
+    int32_t y_max;
+    int32_t y;
+    uint64_t r2;
+
+    if (surf == NULL || surf->pixels == NULL || radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    span = end_deg - start_deg;
+    if (span <= 0) {
+        return;
+    }
+    if (span >= 360) {
+        sol_fill_circle(surf, cx, cy, radius, color);
+        return;
+    }
+
+    s_norm = start_deg % 360;
+    if (s_norm < 0) {
+        s_norm += 360;
+    }
+
+    y_min = (int32_t)SOL_MAX((int64_t)cy - (int64_t)radius, (int64_t)surf->clip.y);
+    y_max = (int32_t)SOL_MIN((int64_t)cy + (int64_t)radius,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+    r2 = (uint64_t)radius * (uint64_t)radius;
+
+    for (y = y_min; y <= y_max; ++y) {
+        int64_t dy = (int64_t)y - (int64_t)cy;
+        int32_t dx_max = (int32_t)sol__isqrt64(r2 - (uint64_t)(dy * dy));
+        int32_t x_min = (int32_t)SOL_MAX((int64_t)cx - dx_max, (int64_t)surf->clip.x);
+        int32_t x_max = (int32_t)SOL_MIN((int64_t)cx + dx_max,
+                                         (int64_t)surf->clip.x + (int64_t)surf->clip.w - 1);
+        int32_t x;
+
+        for (x = x_min; x <= x_max; ++x) {
+            if (sol__angle_in_range(sol__atan2_deg(dy, (int64_t)x - (int64_t)cx), s_norm, span)) {
+                size_t idx = (size_t)y * (size_t)surf->stride + (size_t)x;
+                surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], color);
+            }
+        }
+    }
+}
+
+void sol_fill_ring(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t inner_radius,
+                   int32_t outer_radius, sol_color_t color) {
+    int32_t y_min;
+    int32_t y_max;
+    int32_t y;
+    uint64_t ro2;
+    uint64_t ri2;
+
+    if (surf == NULL || surf->pixels == NULL || outer_radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (inner_radius <= 0) {
+        sol_fill_circle(surf, cx, cy, outer_radius, color);
+        return;
+    }
+    if (inner_radius >= outer_radius) {
+        return;
+    }
+
+    y_min = (int32_t)SOL_MAX((int64_t)cy - (int64_t)outer_radius, (int64_t)surf->clip.y);
+    y_max = (int32_t)SOL_MIN((int64_t)cy + (int64_t)outer_radius,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+    ro2 = (uint64_t)outer_radius * (uint64_t)outer_radius;
+    ri2 = (uint64_t)inner_radius * (uint64_t)inner_radius;
+
+    for (y = y_min; y <= y_max; ++y) {
+        int64_t dy = (int64_t)y - (int64_t)cy;
+        uint64_t dy2 = (uint64_t)(dy * dy);
+        int32_t dx_out = (int32_t)sol__isqrt64(ro2 - dy2);
+
+        if (dy2 >= ri2) {
+            sol__draw_hline_span(surf, cx - dx_out, cx + dx_out, y, color);
+        } else {
+            int32_t dx_in = (int32_t)sol__isqrt64(ri2 - dy2);
+            if (dx_out > dx_in) {
+                sol__draw_hline_span(surf, cx - dx_out, cx - dx_in - 1, y, color);
+                sol__draw_hline_span(surf, cx + dx_in + 1, cx + dx_out, y, color);
+            }
+        }
+    }
+}

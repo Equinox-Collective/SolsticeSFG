@@ -99,4 +99,107 @@ static inline uint32_t sol__isqrt64(uint64_t n) {
     return (uint32_t)res;
 }
 
+static inline void sol__plot_cov(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color,
+                                 uint8_t cov) {
+    uint32_t sa;
+    size_t idx;
+
+    if (cov == 0u) {
+        return;
+    }
+    if (x < surf->clip.x || y < surf->clip.y || x >= surf->clip.x + surf->clip.w ||
+        y >= surf->clip.y + surf->clip.h) {
+        return;
+    }
+
+    sa = sol__div255((uint32_t)SOL_COLOR_A(color) * (uint32_t)cov);
+    if (sa == 0u) {
+        return;
+    }
+
+    idx = (size_t)y * (size_t)surf->stride + (size_t)x;
+    surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], (color & 0x00FFFFFFu) | (sa << 24));
+}
+
+static inline void sol__hline_solid_clipped(sol_surface_t *surf, int32_t x0, int32_t x1, int32_t y,
+                                            sol_color_t color) {
+    uint32_t sa = SOL_COLOR_A(color);
+    uint32_t *dst;
+    int32_t count;
+    int32_t i;
+
+    if (sa == 0u || x0 > x1) {
+        return;
+    }
+    if (y < surf->clip.y || y >= surf->clip.y + surf->clip.h) {
+        return;
+    }
+    if (x0 < surf->clip.x) {
+        x0 = surf->clip.x;
+    }
+    if (x1 >= surf->clip.x + surf->clip.w) {
+        x1 = surf->clip.x + surf->clip.w - 1;
+    }
+    if (x0 > x1) {
+        return;
+    }
+
+    dst = surf->pixels + (size_t)y * (size_t)surf->stride + (size_t)x0;
+    count = x1 - x0 + 1;
+    if (sa == 255u) {
+        for (i = 0; i < count; ++i) {
+            dst[i] = color;
+        }
+    } else {
+        for (i = 0; i < count; ++i) {
+            dst[i] = sol__blend_argb_fast(dst[i], color);
+        }
+    }
+}
+
+/* Signed distance in 1/256 px units from point (px,py) to rounded box [bx0..bx1, by0..by1] */
+static inline int32_t sol__sdf_rounded_box_fp8(int32_t px, int32_t py, int32_t bx0, int32_t by0,
+                                               int32_t bx1, int32_t by1, int32_t r) {
+    /* Distance to inner rectangle [bx0+r .. bx1-r] x [by0+r .. by1-r] in 1/256 px (pixel center
+     * +0.5) */
+    int64_t cx2 = (int64_t)px * 2 + 1;
+    int64_t cy2 = (int64_t)py * 2 + 1;
+    int64_t ix0 = (int64_t)(bx0 + r) * 2;
+    int64_t ix1 = (int64_t)(bx1 - r) * 2;
+    int64_t iy0 = (int64_t)(by0 + r) * 2;
+    int64_t iy1 = (int64_t)(by1 - r) * 2;
+    int64_t qx = 0;
+    int64_t qy = 0;
+    int64_t r_fp8 = (int64_t)r * 256;
+
+    if (cx2 < ix0) {
+        qx = (ix0 - cx2) * 128; /* (ix0 - cx2) / 2 * 256 */
+    } else if (cx2 > ix1) {
+        qx = (cx2 - ix1) * 128;
+    }
+
+    if (cy2 < iy0) {
+        qy = (iy0 - cy2) * 128;
+    } else if (cy2 > iy1) {
+        qy = (cy2 - iy1) * 128;
+    }
+
+    if (qx > 0 && qy > 0) {
+        uint64_t d =
+            (uint64_t)sol__isqrt64((uint64_t)qx * (uint64_t)qx + (uint64_t)qy * (uint64_t)qy);
+        return (int32_t)((int64_t)d - r_fp8);
+    }
+
+    if (qx > 0 || qy > 0) {
+        return (int32_t)(SOL_MAX(qx, qy) - r_fp8);
+    }
+
+    /* Strictly inside inner core: negative distance to nearest edge */
+    {
+        int64_t dx_in = SOL_MIN(cx2 - (int64_t)bx0 * 2, (int64_t)bx1 * 2 - cx2) * 128;
+        int64_t dy_in = SOL_MIN(cy2 - (int64_t)by0 * 2, (int64_t)by1 * 2 - cy2) * 128;
+        return (int32_t)(-SOL_MIN(dx_in, dy_in));
+    }
+}
+
 #endif /* SOL_INTERNAL_H */

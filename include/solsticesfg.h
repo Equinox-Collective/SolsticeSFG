@@ -143,6 +143,17 @@ typedef struct sol_dirty_tracker {
     bool full_redraw;
 } sol_dirty_tracker_t;
 
+typedef struct sol_corner_radii {
+    int32_t tl;
+    int32_t tr;
+    int32_t br;
+    int32_t bl;
+} sol_corner_radii_t;
+
+#define SOL_CORNERS(tl, tr, br, bl) ((sol_corner_radii_t){(tl), (tr), (br), (bl)})
+
+typedef enum sol_line_cap { SOL_CAP_BUTT = 0, SOL_CAP_ROUND, SOL_CAP_SQUARE } sol_line_cap_t;
+
 /* Core & Surface Management */
 SOL_API const char *sol_version_string(void);
 
@@ -267,6 +278,48 @@ SOL_API void sol_draw_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int3
                                int32_t x2, int32_t y2, sol_color_t color);
 SOL_API void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
                                int32_t x2, int32_t y2, sol_color_t color);
+
+/* Extended Hard-Edged Primitives */
+SOL_API void sol_fill_rounded_rect_ex(sol_surface_t *surf, sol_rect_t rect,
+                                      sol_corner_radii_t radii, sol_color_t color);
+SOL_API void sol_draw_line_dashed(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1,
+                                  int32_t y1, int32_t dash_len, int32_t gap_len, sol_color_t color);
+SOL_API void sol_draw_arc(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                          int32_t start_deg, int32_t end_deg, sol_color_t color);
+SOL_API void sol_fill_pie(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                          int32_t start_deg, int32_t end_deg, sol_color_t color);
+SOL_API void sol_fill_ring(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t inner_radius,
+                           int32_t outer_radius, sol_color_t color);
+
+/* Anti-Aliased Primitives (sol_aa.c) */
+SOL_API void sol_draw_line_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                              sol_color_t color);
+SOL_API void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1,
+                                    int32_t y1, int32_t thickness, sol_line_cap_t cap,
+                                    sol_color_t color);
+SOL_API void sol_fill_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                                sol_color_t color);
+SOL_API void sol_draw_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                                int32_t thickness, sol_color_t color);
+SOL_API void sol_fill_ellipse_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rx,
+                                 int32_t ry, sol_color_t color);
+SOL_API void sol_fill_rounded_rect_aa(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                                      sol_color_t color);
+SOL_API void sol_fill_rounded_rect_ex_aa(sol_surface_t *surf, sol_rect_t rect,
+                                         sol_corner_radii_t radii, sol_color_t color);
+SOL_API void sol_draw_rounded_rect_aa(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                                      int32_t thickness, sol_color_t color);
+SOL_API void sol_fill_triangle_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1,
+                                  int32_t y1, int32_t x2, int32_t y2, sol_color_t color);
+
+/* Visual Effects (sol_fx.c) */
+SOL_API void sol_blur_rect(sol_surface_t *surf, sol_rect_t rect, int32_t radius);
+SOL_API void sol_blur_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t corner_radius,
+                                   int32_t blur_radius);
+SOL_API void sol_draw_box_shadow(sol_surface_t *surf, sol_rect_t rect, int32_t corner_radius,
+                                 int32_t offset_x, int32_t offset_y, int32_t blur_radius,
+                                 int32_t spread, sol_color_t color);
+SOL_API void sol_apply_noise(sol_surface_t *surf, sol_rect_t rect, uint8_t amount, uint32_t seed);
 
 /* ============================================================================
  * Phase 1.2: Freestanding Memory & Arena Allocator

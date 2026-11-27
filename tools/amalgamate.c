@@ -13,8 +13,9 @@ static const char *const k_public_headers[] = {"solsticesfg.h"};
 
 static const char *const k_internal_headers[] = {"sol_internal.h"};
 
-static const char *const k_source_files[] = {"sol_core.c", "sol_blend.c", "sol_draw.c",
-                                             "sol_alloc.c", "sol_format.c"};
+static const char *const k_source_files[] = {"sol_core.c",  "sol_blend.c",  "sol_draw.c",
+                                             "sol_alloc.c", "sol_format.c", "sol_aa.c",
+                                             "sol_fx.c"};
 
 static int has_c_or_h_ext(const char *name) {
     size_t len = strlen(name);

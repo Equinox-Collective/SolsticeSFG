@@ -160,6 +160,17 @@ typedef struct sol_dirty_tracker {
     bool full_redraw;
 } sol_dirty_tracker_t;
 
+typedef struct sol_corner_radii {
+    int32_t tl;
+    int32_t tr;
+    int32_t br;
+    int32_t bl;
+} sol_corner_radii_t;
+
+#define SOL_CORNERS(tl, tr, br, bl) ((sol_corner_radii_t){(tl), (tr), (br), (bl)})
+
+typedef enum sol_line_cap { SOL_CAP_BUTT = 0, SOL_CAP_ROUND, SOL_CAP_SQUARE } sol_line_cap_t;
+
 /* Core & Surface Management */
 SOL_API const char *sol_version_string(void);
 
@@ -284,6 +295,48 @@ SOL_API void sol_draw_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int3
                                int32_t x2, int32_t y2, sol_color_t color);
 SOL_API void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
                                int32_t x2, int32_t y2, sol_color_t color);
+
+/* Extended Hard-Edged Primitives */
+SOL_API void sol_fill_rounded_rect_ex(sol_surface_t *surf, sol_rect_t rect,
+                                      sol_corner_radii_t radii, sol_color_t color);
+SOL_API void sol_draw_line_dashed(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1,
+                                  int32_t y1, int32_t dash_len, int32_t gap_len, sol_color_t color);
+SOL_API void sol_draw_arc(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                          int32_t start_deg, int32_t end_deg, sol_color_t color);
+SOL_API void sol_fill_pie(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                          int32_t start_deg, int32_t end_deg, sol_color_t color);
+SOL_API void sol_fill_ring(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t inner_radius,
+                           int32_t outer_radius, sol_color_t color);
+
+/* Anti-Aliased Primitives (sol_aa.c) */
+SOL_API void sol_draw_line_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                              sol_color_t color);
+SOL_API void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1,
+                                    int32_t y1, int32_t thickness, sol_line_cap_t cap,
+                                    sol_color_t color);
+SOL_API void sol_fill_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                                sol_color_t color);
+SOL_API void sol_draw_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                                int32_t thickness, sol_color_t color);
+SOL_API void sol_fill_ellipse_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rx,
+                                 int32_t ry, sol_color_t color);
+SOL_API void sol_fill_rounded_rect_aa(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                                      sol_color_t color);
+SOL_API void sol_fill_rounded_rect_ex_aa(sol_surface_t *surf, sol_rect_t rect,
+                                         sol_corner_radii_t radii, sol_color_t color);
+SOL_API void sol_draw_rounded_rect_aa(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                                      int32_t thickness, sol_color_t color);
+SOL_API void sol_fill_triangle_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1,
+                                  int32_t y1, int32_t x2, int32_t y2, sol_color_t color);
+
+/* Visual Effects (sol_fx.c) */
+SOL_API void sol_blur_rect(sol_surface_t *surf, sol_rect_t rect, int32_t radius);
+SOL_API void sol_blur_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t corner_radius,
+                                   int32_t blur_radius);
+SOL_API void sol_draw_box_shadow(sol_surface_t *surf, sol_rect_t rect, int32_t corner_radius,
+                                 int32_t offset_x, int32_t offset_y, int32_t blur_radius,
+                                 int32_t spread, sol_color_t color);
+SOL_API void sol_apply_noise(sol_surface_t *surf, sol_rect_t rect, uint8_t amount, uint32_t seed);
 
 /* ============================================================================
  * Phase 1.2: Freestanding Memory & Arena Allocator
@@ -494,6 +547,109 @@ static inline uint32_t sol__isqrt64(uint64_t n) {
         bit >>= 2;
     }
     return (uint32_t)res;
+}
+
+static inline void sol__plot_cov(sol_surface_t *surf, int32_t x, int32_t y, sol_color_t color,
+                                 uint8_t cov) {
+    uint32_t sa;
+    size_t idx;
+
+    if (cov == 0u) {
+        return;
+    }
+    if (x < surf->clip.x || y < surf->clip.y || x >= surf->clip.x + surf->clip.w ||
+        y >= surf->clip.y + surf->clip.h) {
+        return;
+    }
+
+    sa = sol__div255((uint32_t)SOL_COLOR_A(color) * (uint32_t)cov);
+    if (sa == 0u) {
+        return;
+    }
+
+    idx = (size_t)y * (size_t)surf->stride + (size_t)x;
+    surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], (color & 0x00FFFFFFu) | (sa << 24));
+}
+
+static inline void sol__hline_solid_clipped(sol_surface_t *surf, int32_t x0, int32_t x1, int32_t y,
+                                            sol_color_t color) {
+    uint32_t sa = SOL_COLOR_A(color);
+    uint32_t *dst;
+    int32_t count;
+    int32_t i;
+
+    if (sa == 0u || x0 > x1) {
+        return;
+    }
+    if (y < surf->clip.y || y >= surf->clip.y + surf->clip.h) {
+        return;
+    }
+    if (x0 < surf->clip.x) {
+        x0 = surf->clip.x;
+    }
+    if (x1 >= surf->clip.x + surf->clip.w) {
+        x1 = surf->clip.x + surf->clip.w - 1;
+    }
+    if (x0 > x1) {
+        return;
+    }
+
+    dst = surf->pixels + (size_t)y * (size_t)surf->stride + (size_t)x0;
+    count = x1 - x0 + 1;
+    if (sa == 255u) {
+        for (i = 0; i < count; ++i) {
+            dst[i] = color;
+        }
+    } else {
+        for (i = 0; i < count; ++i) {
+            dst[i] = sol__blend_argb_fast(dst[i], color);
+        }
+    }
+}
+
+/* Signed distance in 1/256 px units from point (px,py) to rounded box [bx0..bx1, by0..by1] */
+static inline int32_t sol__sdf_rounded_box_fp8(int32_t px, int32_t py, int32_t bx0, int32_t by0,
+                                               int32_t bx1, int32_t by1, int32_t r) {
+    /* Distance to inner rectangle [bx0+r .. bx1-r] x [by0+r .. by1-r] in 1/256 px (pixel center
+     * +0.5) */
+    int64_t cx2 = (int64_t)px * 2 + 1;
+    int64_t cy2 = (int64_t)py * 2 + 1;
+    int64_t ix0 = (int64_t)(bx0 + r) * 2;
+    int64_t ix1 = (int64_t)(bx1 - r) * 2;
+    int64_t iy0 = (int64_t)(by0 + r) * 2;
+    int64_t iy1 = (int64_t)(by1 - r) * 2;
+    int64_t qx = 0;
+    int64_t qy = 0;
+    int64_t r_fp8 = (int64_t)r * 256;
+
+    if (cx2 < ix0) {
+        qx = (ix0 - cx2) * 128; /* (ix0 - cx2) / 2 * 256 */
+    } else if (cx2 > ix1) {
+        qx = (cx2 - ix1) * 128;
+    }
+
+    if (cy2 < iy0) {
+        qy = (iy0 - cy2) * 128;
+    } else if (cy2 > iy1) {
+        qy = (cy2 - iy1) * 128;
+    }
+
+    if (qx > 0 && qy > 0) {
+        uint64_t d =
+            (uint64_t)sol__isqrt64((uint64_t)qx * (uint64_t)qx + (uint64_t)qy * (uint64_t)qy);
+        return (int32_t)((int64_t)d - r_fp8);
+    }
+
+    if (qx > 0 || qy > 0) {
+        return (int32_t)(SOL_MAX(qx, qy) - r_fp8);
+    }
+
+    /* Strictly inside inner core: negative distance to nearest edge */
+    {
+        int64_t dx_in = SOL_MIN(cx2 - (int64_t)bx0 * 2, (int64_t)bx1 * 2 - cx2) * 128;
+        int64_t dy_in = SOL_MIN(cy2 - (int64_t)by0 * 2, (int64_t)by1 * 2 - cy2) * 128;
+        return (int32_t)(-SOL_MIN(dx_in, dy_in));
+    }
 }
 
 #endif /* SOL_INTERNAL_H */
@@ -2489,6 +2645,356 @@ void sol_fill_triangle(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, 
         }
     }
 }
+
+SOL_PRIVATE int32_t sol__atan2_deg(int64_t dy, int64_t dx) {
+    uint64_t ax = (uint64_t)(dx < 0 ? -dx : dx);
+    uint64_t ay = (uint64_t)(dy < 0 ? -dy : dy);
+    int32_t base_deg;
+
+    if (ax == 0u && ay == 0u) {
+        return 0;
+    }
+
+    if (ax >= ay) {
+        uint64_t t = (ay * 1024u) / ax;
+        base_deg = (int32_t)((45u * t) / 1024u + (t * (1024u - t) * 16u) / (1024u * 1024u));
+    } else {
+        uint64_t t = (ax * 1024u) / ay;
+        base_deg = 90 - (int32_t)((45u * t) / 1024u + (t * (1024u - t) * 16u) / (1024u * 1024u));
+    }
+
+    if (dx >= 0 && dy >= 0) {
+        return base_deg;
+    }
+    if (dx < 0 && dy >= 0) {
+        return 180 - base_deg;
+    }
+    if (dx < 0 && dy < 0) {
+        return 180 + base_deg;
+    }
+    return (base_deg == 0) ? 0 : (360 - base_deg);
+}
+
+SOL_PRIVATE bool sol__angle_in_range(int32_t deg, int32_t start_deg, int32_t span_deg) {
+    int32_t rel = (deg - start_deg) % 360;
+    if (rel < 0) {
+        rel += 360;
+    }
+    return rel <= span_deg;
+}
+
+SOL_PRIVATE void sol__normalize_corners(sol_corner_radii_t *cr, int32_t w, int32_t h) {
+    if (cr->tl < 0) {
+        cr->tl = 0;
+    }
+    if (cr->tr < 0) {
+        cr->tr = 0;
+    }
+    if (cr->br < 0) {
+        cr->br = 0;
+    }
+    if (cr->bl < 0) {
+        cr->bl = 0;
+    }
+
+    if (cr->tl + cr->tr > w) {
+        int32_t s = cr->tl + cr->tr;
+        cr->tl = (int32_t)(((int64_t)cr->tl * w) / s);
+        cr->tr = w - cr->tl;
+    }
+    if (cr->bl + cr->br > w) {
+        int32_t s = cr->bl + cr->br;
+        cr->bl = (int32_t)(((int64_t)cr->bl * w) / s);
+        cr->br = w - cr->bl;
+    }
+    if (cr->tl + cr->bl > h) {
+        int32_t s = cr->tl + cr->bl;
+        cr->tl = (int32_t)(((int64_t)cr->tl * h) / s);
+        cr->bl = h - cr->tl;
+    }
+    if (cr->tr + cr->br > h) {
+        int32_t s = cr->tr + cr->br;
+        cr->tr = (int32_t)(((int64_t)cr->tr * h) / s);
+        cr->br = h - cr->tr;
+    }
+}
+
+void sol_fill_rounded_rect_ex(sol_surface_t *surf, sol_rect_t rect, sol_corner_radii_t radii,
+                              sol_color_t color) {
+    sol_rect_t r;
+    int32_t row;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 ||
+        SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    sol__normalize_corners(&radii, rect.w, rect.h);
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 0 || r.h <= 0) {
+        return;
+    }
+
+    for (row = r.y; row < r.y + r.h; ++row) {
+        int32_t local_y = row - rect.y;
+        int32_t left_inset = 0;
+        int32_t right_inset = 0;
+
+        if (radii.tl > 0 && local_y < radii.tl) {
+            int64_t dy = (int64_t)radii.tl - (int64_t)local_y;
+            int32_t dx = (int32_t)sol__isqrt64((uint64_t)radii.tl * (uint64_t)radii.tl -
+                                               (uint64_t)(dy * dy));
+            left_inset = radii.tl - dx;
+        } else if (radii.bl > 0 && local_y >= rect.h - radii.bl) {
+            int64_t dy = (int64_t)local_y - (int64_t)(rect.h - 1 - radii.bl);
+            int32_t dx = (int32_t)sol__isqrt64((uint64_t)radii.bl * (uint64_t)radii.bl -
+                                               (uint64_t)(dy * dy));
+            left_inset = radii.bl - dx;
+        }
+
+        if (radii.tr > 0 && local_y < radii.tr) {
+            int64_t dy = (int64_t)radii.tr - (int64_t)local_y;
+            int32_t dx = (int32_t)sol__isqrt64((uint64_t)radii.tr * (uint64_t)radii.tr -
+                                               (uint64_t)(dy * dy));
+            right_inset = radii.tr - dx;
+        } else if (radii.br > 0 && local_y >= rect.h - radii.br) {
+            int64_t dy = (int64_t)local_y - (int64_t)(rect.h - 1 - radii.br);
+            int32_t dx = (int32_t)sol__isqrt64((uint64_t)radii.br * (uint64_t)radii.br -
+                                               (uint64_t)(dy * dy));
+            right_inset = radii.br - dx;
+        }
+
+        {
+            int32_t x0 = (int32_t)SOL_MAX((int64_t)rect.x + left_inset, (int64_t)r.x);
+            int32_t x1 = (int32_t)SOL_MIN((int64_t)rect.x + rect.w - 1 - right_inset,
+                                          (int64_t)r.x + r.w - 1);
+            if (x0 <= x1) {
+                sol__draw_hline_clipped(surf, x0, x1, row, color);
+            }
+        }
+    }
+}
+
+void sol_draw_line_dashed(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                          int32_t dash_len, int32_t gap_len, sol_color_t color) {
+    int64_t dx;
+    int64_t dy;
+    int32_t sx;
+    int32_t sy;
+    int64_t err;
+    int32_t period;
+    int32_t step = 0;
+
+    if (surf == NULL || surf->pixels == NULL || dash_len <= 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (gap_len <= 0) {
+        sol_draw_line(surf, x0, y0, x1, y1, color);
+        return;
+    }
+
+    dx = (int64_t)x1 - (int64_t)x0;
+    dy = (int64_t)y1 - (int64_t)y0;
+    if (dx < 0) {
+        dx = -dx;
+    }
+    if (dy < 0) {
+        dy = -dy;
+    }
+    /* Guard extreme unclipped dashed spans */
+    if (dx > 65536 || dy > 65536) {
+        sol_draw_line(surf, x0, y0, x1, y1, color);
+        return;
+    }
+
+    sx = x0 < x1 ? 1 : -1;
+    sy = y0 < y1 ? 1 : -1;
+    err = dx - dy;
+    period = dash_len + gap_len;
+
+    for (;;) {
+        if ((step % period) < dash_len) {
+            sol__draw_plot(surf, x0, y0, color);
+        }
+        if (x0 == x1 && y0 == y1) {
+            break;
+        }
+        {
+            int64_t e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                y0 += sy;
+            }
+        }
+        step++;
+    }
+}
+
+void sol_draw_arc(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius, int32_t start_deg,
+                  int32_t end_deg, sol_color_t color) {
+    int32_t span;
+    int32_t s_norm;
+    int32_t x;
+    int32_t y;
+    int32_t err;
+
+    if (surf == NULL || surf->pixels == NULL || radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    span = end_deg - start_deg;
+    if (span <= 0) {
+        return;
+    }
+    if (span >= 360) {
+        sol_draw_circle(surf, cx, cy, radius, color);
+        return;
+    }
+
+    s_norm = start_deg % 360;
+    if (s_norm < 0) {
+        s_norm += 360;
+    }
+
+    if (radius == 0) {
+        sol__draw_plot(surf, cx, cy, color);
+        return;
+    }
+
+    x = 0;
+    y = radius;
+    err = 1 - radius;
+
+    {
+        int32_t pts[4][2] = {{0, -radius}, {0, radius}, {-radius, 0}, {radius, 0}};
+        int i;
+        for (i = 0; i < 4; ++i) {
+            if (sol__angle_in_range(sol__atan2_deg(pts[i][1], pts[i][0]), s_norm, span)) {
+                sol__draw_plot(surf, cx + pts[i][0], cy + pts[i][1], color);
+            }
+        }
+    }
+
+    while (x < y) {
+        if (err < 0) {
+            err += 2 * x + 3;
+        } else {
+            err += 2 * (x - y) + 5;
+            y--;
+        }
+        x++;
+        if (x > y) {
+            break;
+        }
+
+        {
+            int32_t oct[8][2] = {{x, y}, {-x, y}, {x, -y}, {-x, -y},
+                                 {y, x}, {-y, x}, {y, -x}, {-y, -x}};
+            int count = (x == y) ? 4 : 8;
+            int i;
+            for (i = 0; i < count; ++i) {
+                if (sol__angle_in_range(sol__atan2_deg(oct[i][1], oct[i][0]), s_norm, span)) {
+                    sol__draw_plot(surf, cx + oct[i][0], cy + oct[i][1], color);
+                }
+            }
+        }
+    }
+}
+
+void sol_fill_pie(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius, int32_t start_deg,
+                  int32_t end_deg, sol_color_t color) {
+    int32_t span;
+    int32_t s_norm;
+    int32_t y_min;
+    int32_t y_max;
+    int32_t y;
+    uint64_t r2;
+
+    if (surf == NULL || surf->pixels == NULL || radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    span = end_deg - start_deg;
+    if (span <= 0) {
+        return;
+    }
+    if (span >= 360) {
+        sol_fill_circle(surf, cx, cy, radius, color);
+        return;
+    }
+
+    s_norm = start_deg % 360;
+    if (s_norm < 0) {
+        s_norm += 360;
+    }
+
+    y_min = (int32_t)SOL_MAX((int64_t)cy - (int64_t)radius, (int64_t)surf->clip.y);
+    y_max = (int32_t)SOL_MIN((int64_t)cy + (int64_t)radius,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+    r2 = (uint64_t)radius * (uint64_t)radius;
+
+    for (y = y_min; y <= y_max; ++y) {
+        int64_t dy = (int64_t)y - (int64_t)cy;
+        int32_t dx_max = (int32_t)sol__isqrt64(r2 - (uint64_t)(dy * dy));
+        int32_t x_min = (int32_t)SOL_MAX((int64_t)cx - dx_max, (int64_t)surf->clip.x);
+        int32_t x_max = (int32_t)SOL_MIN((int64_t)cx + dx_max,
+                                         (int64_t)surf->clip.x + (int64_t)surf->clip.w - 1);
+        int32_t x;
+
+        for (x = x_min; x <= x_max; ++x) {
+            if (sol__angle_in_range(sol__atan2_deg(dy, (int64_t)x - (int64_t)cx), s_norm, span)) {
+                size_t idx = (size_t)y * (size_t)surf->stride + (size_t)x;
+                surf->pixels[idx] = sol__blend_argb_fast(surf->pixels[idx], color);
+            }
+        }
+    }
+}
+
+void sol_fill_ring(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t inner_radius,
+                   int32_t outer_radius, sol_color_t color) {
+    int32_t y_min;
+    int32_t y_max;
+    int32_t y;
+    uint64_t ro2;
+    uint64_t ri2;
+
+    if (surf == NULL || surf->pixels == NULL || outer_radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (inner_radius <= 0) {
+        sol_fill_circle(surf, cx, cy, outer_radius, color);
+        return;
+    }
+    if (inner_radius >= outer_radius) {
+        return;
+    }
+
+    y_min = (int32_t)SOL_MAX((int64_t)cy - (int64_t)outer_radius, (int64_t)surf->clip.y);
+    y_max = (int32_t)SOL_MIN((int64_t)cy + (int64_t)outer_radius,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+    ro2 = (uint64_t)outer_radius * (uint64_t)outer_radius;
+    ri2 = (uint64_t)inner_radius * (uint64_t)inner_radius;
+
+    for (y = y_min; y <= y_max; ++y) {
+        int64_t dy = (int64_t)y - (int64_t)cy;
+        uint64_t dy2 = (uint64_t)(dy * dy);
+        int32_t dx_out = (int32_t)sol__isqrt64(ro2 - dy2);
+
+        if (dy2 >= ri2) {
+            sol__draw_hline_span(surf, cx - dx_out, cx + dx_out, y, color);
+        } else {
+            int32_t dx_in = (int32_t)sol__isqrt64(ri2 - dy2);
+            if (dx_out > dx_in) {
+                sol__draw_hline_span(surf, cx - dx_out, cx - dx_in - 1, y, color);
+                sol__draw_hline_span(surf, cx + dx_in + 1, cx + dx_out, y, color);
+            }
+        }
+    }
+}
 /* === END sol_draw.c === */
 
 /* === BEGIN sol_alloc.c === */
@@ -2906,6 +3412,1000 @@ sol_status_t sol_present_to_buffer(void *dst_pixels, int32_t dst_stride_bytes,
     return SOL_OK;
 }
 /* === END sol_format.c === */
+
+/* === BEGIN sol_aa.c === */
+
+void sol_draw_line_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                      sol_color_t color) {
+    bool steep;
+    int64_t dx;
+    int64_t dy;
+    int64_t grad;
+    int32_t x_start;
+    int32_t x_end;
+    int32_t min_major;
+    int32_t max_major;
+    int64_t intery;
+    int32_t x;
+
+    if (surf == NULL || surf->pixels == NULL || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (surf->clip.w <= 0 || surf->clip.h <= 0) {
+        return;
+    }
+    if (x0 == x1) {
+        int32_t top = SOL_MIN(y0, y1);
+        int32_t bot = SOL_MAX(y0, y1);
+        sol_draw_vline(surf, x0, top, bot - top + 1, color);
+        return;
+    }
+    if (y0 == y1) {
+        int32_t left = SOL_MIN(x0, x1);
+        int32_t right = SOL_MAX(x0, x1);
+        sol_draw_hline(surf, left, y0, right - left + 1, color);
+        return;
+    }
+
+    {
+        int64_t adx = (int64_t)x1 - (int64_t)x0;
+        int64_t ady = (int64_t)y1 - (int64_t)y0;
+        if (adx < 0) {
+            adx = -adx;
+        }
+        if (ady < 0) {
+            ady = -ady;
+        }
+        steep = ady > adx;
+    }
+
+    if (steep) {
+        int32_t t0 = x0;
+        int32_t t1 = x1;
+        x0 = y0;
+        y0 = t0;
+        x1 = y1;
+        y1 = t1;
+    }
+    if (x0 > x1) {
+        int32_t tx = x0;
+        int32_t ty = y0;
+        x0 = x1;
+        y0 = y1;
+        x1 = tx;
+        y1 = ty;
+    }
+
+    dx = (int64_t)x1 - (int64_t)x0;
+    dy = (int64_t)y1 - (int64_t)y0;
+    grad = (dy << 16) / dx;
+
+    min_major = steep ? (surf->clip.y - 1) : (surf->clip.x - 1);
+    max_major = steep ? (surf->clip.y + surf->clip.h) : (surf->clip.x + surf->clip.w);
+
+    x_start = (x0 < min_major) ? min_major : x0;
+    x_end = (x1 > max_major) ? max_major : x1;
+    if (x_start > x_end) {
+        return;
+    }
+
+    intery = ((int64_t)y0 << 16) + grad * ((int64_t)x_start - (int64_t)x0);
+
+    for (x = x_start; x <= x_end; ++x) {
+        int64_t floor_y = (intery >= 0) ? (intery >> 16) : -(((-intery) + 0xFFFF) >> 16);
+        uint8_t frac = (uint8_t)(((intery - (floor_y << 16)) >> 8) & 0xFF);
+        int32_t iy = (int32_t)floor_y;
+
+        if (steep) {
+            sol__plot_cov(surf, iy, x, color, (uint8_t)(255u - frac));
+            sol__plot_cov(surf, iy + 1, x, color, frac);
+        } else {
+            sol__plot_cov(surf, x, iy, color, (uint8_t)(255u - frac));
+            sol__plot_cov(surf, x, iy + 1, color, frac);
+        }
+        intery += grad;
+    }
+}
+
+void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                            int32_t thickness, sol_line_cap_t cap, sol_color_t color) {
+    int64_t dx;
+    int64_t dy;
+    int64_t len2;
+    int32_t r_fp8;
+    int32_t pad;
+    int32_t min_y;
+    int32_t max_y;
+    int32_t min_x;
+    int32_t max_x;
+    int32_t y;
+
+    if (surf == NULL || surf->pixels == NULL || thickness <= 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (surf->clip.w <= 0 || surf->clip.h <= 0) {
+        return;
+    }
+    if (thickness == 1 && cap == SOL_CAP_BUTT) {
+        sol_draw_line_aa(surf, x0, y0, x1, y1, color);
+        return;
+    }
+
+    r_fp8 = thickness * 128; /* thickness / 2 in 1/256 px */
+    pad = (thickness / 2) + 2;
+
+    if (x0 == x1 && y0 == y1) {
+        if (cap == SOL_CAP_ROUND) {
+            sol_fill_circle_aa(surf, x0, y0, thickness / 2, color);
+        } else {
+            sol_fill_rect(surf,
+                          SOL_RECT(x0 - thickness / 2, y0 - thickness / 2, thickness, thickness),
+                          color);
+        }
+        return;
+    }
+
+    dx = (int64_t)x1 - (int64_t)x0;
+    dy = (int64_t)y1 - (int64_t)y0;
+    len2 = dx * dx + dy * dy;
+
+    min_y = (int32_t)SOL_MAX(SOL_MIN((int64_t)y0, (int64_t)y1) - pad, (int64_t)surf->clip.y);
+    max_y = (int32_t)SOL_MIN(SOL_MAX((int64_t)y0, (int64_t)y1) + pad,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+    min_x = (int32_t)SOL_MAX(SOL_MIN((int64_t)x0, (int64_t)x1) - pad, (int64_t)surf->clip.x);
+    max_x = (int32_t)SOL_MIN(SOL_MAX((int64_t)x0, (int64_t)x1) + pad,
+                             (int64_t)surf->clip.x + (int64_t)surf->clip.w - 1);
+
+    if (min_y > max_y || min_x > max_x) {
+        return;
+    }
+
+    {
+        uint32_t len_fp8 = sol__isqrt64((uint64_t)len2 << 16);
+        int64_t ady = (dy < 0) ? -dy : dy;
+        int64_t x_span_margin = (ady > 0)
+                                    ? (((int64_t)pad * (int64_t)(len_fp8 >> 8) + ady - 1) / ady) + 2
+                                    : (max_x - min_x + 1);
+
+        for (y = min_y; y <= max_y; ++y) {
+            int32_t row_x0 = min_x;
+            int32_t row_x1 = max_x;
+            int32_t x;
+
+            if (ady > 0 && len2 > 0) {
+                int64_t xc = (int64_t)x0 + (dx * ((int64_t)y - (int64_t)y0)) / dy;
+                row_x0 = (int32_t)SOL_MAX((int64_t)min_x, xc - x_span_margin);
+                row_x1 = (int32_t)SOL_MIN((int64_t)max_x, xc + x_span_margin);
+            }
+
+            for (x = row_x0; x <= row_x1; ++x) {
+                int64_t px = (int64_t)x - (int64_t)x0;
+                int64_t py = (int64_t)y - (int64_t)y0;
+                int64_t dot = px * dx + py * dy;
+                int64_t cross = px * dy - py * dx;
+                int64_t dist_perp_fp8 = ((cross < 0 ? -cross : cross) << 8) / (int64_t)len_fp8;
+                int64_t dist_fp8;
+
+                if (cap == SOL_CAP_ROUND) {
+                    if (dot <= 0) {
+                        dist_fp8 = (int64_t)sol__isqrt64((uint64_t)(px * px + py * py) << 16);
+                    } else if (dot >= len2) {
+                        int64_t qx = (int64_t)x - (int64_t)x1;
+                        int64_t qy = (int64_t)y - (int64_t)y1;
+                        dist_fp8 = (int64_t)sol__isqrt64((uint64_t)(qx * qx + qy * qy) << 16);
+                    } else {
+                        dist_fp8 = dist_perp_fp8;
+                    }
+                } else {
+                    int64_t along_fp8 = (dot << 8) / (int64_t)len_fp8;
+                    int64_t max_along_fp8 = (int64_t)len_fp8;
+                    int64_t ext = (cap == SOL_CAP_SQUARE) ? (int64_t)r_fp8 : 0;
+                    int64_t cap_dist = 0;
+
+                    if (along_fp8 < -ext) {
+                        cap_dist = (-ext) - along_fp8;
+                    } else if (along_fp8 > max_along_fp8 + ext) {
+                        cap_dist = along_fp8 - (max_along_fp8 + ext);
+                    }
+                    dist_fp8 = SOL_MAX(dist_perp_fp8, cap_dist);
+                }
+
+                if (dist_fp8 < (int64_t)r_fp8 + 128) {
+                    int64_t cov = (int64_t)r_fp8 + 128 - dist_fp8;
+                    uint8_t c8 = (cov >= 255) ? 255u : (uint8_t)cov;
+                    sol__plot_cov(surf, x, y, color, c8);
+                }
+            }
+        }
+    }
+}
+
+void sol_fill_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                        sol_color_t color) {
+    int32_t y_min;
+    int32_t y_max;
+    int32_t y;
+    int64_t r_fp8;
+    int64_t r_inner;
+
+    if (surf == NULL || surf->pixels == NULL || radius < 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (radius == 0) {
+        sol_blend_pixel(surf, cx, cy, color);
+        return;
+    }
+
+    r_fp8 = (int64_t)radius * 256;
+    r_inner = (radius > 1) ? (radius - 1) : 0;
+
+    y_min = (int32_t)SOL_MAX((int64_t)cy - (int64_t)radius - 1, (int64_t)surf->clip.y);
+    y_max = (int32_t)SOL_MIN((int64_t)cy + (int64_t)radius + 1,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+
+    for (y = y_min; y <= y_max; ++y) {
+        int64_t dy = (int64_t)y - (int64_t)cy;
+        uint64_t dy2_fp = (uint64_t)(dy * dy) << 16;
+        int32_t dx_outer = radius + 1;
+        int32_t dx_solid = 0;
+
+        if ((uint64_t)(dy * dy) < (uint64_t)(r_inner * r_inner)) {
+            dx_solid = (int32_t)sol__isqrt64((uint64_t)(r_inner * r_inner) - (uint64_t)(dy * dy));
+        }
+
+        if (dx_solid > 0) {
+            sol__hline_solid_clipped(surf, cx - dx_solid + 1, cx + dx_solid - 1, y, color);
+        }
+
+        {
+            int32_t x_left_start = cx - dx_outer;
+            int32_t x_left_end = (dx_solid > 0) ? (cx - dx_solid) : (cx + dx_outer);
+            int32_t x;
+
+            for (x = x_left_start; x <= x_left_end; ++x) {
+                int64_t dx = (int64_t)x - (int64_t)cx;
+                int64_t dist_fp = (int64_t)sol__isqrt64(((uint64_t)(dx * dx) << 16) + dy2_fp);
+                int64_t cov = r_fp8 + 128 - dist_fp;
+                if (cov > 0) {
+                    sol__plot_cov(surf, x, y, color, (cov >= 255) ? 255u : (uint8_t)cov);
+                }
+            }
+
+            if (dx_solid > 0) {
+                for (x = cx + dx_solid; x <= cx + dx_outer; ++x) {
+                    int64_t dx = (int64_t)x - (int64_t)cx;
+                    int64_t dist_fp = (int64_t)sol__isqrt64(((uint64_t)(dx * dx) << 16) + dy2_fp);
+                    int64_t cov = r_fp8 + 128 - dist_fp;
+                    if (cov > 0) {
+                        sol__plot_cov(surf, x, y, color, (cov >= 255) ? 255u : (uint8_t)cov);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void sol_draw_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius,
+                        int32_t thickness, sol_color_t color) {
+    int32_t outer_r;
+    int32_t y_min;
+    int32_t y_max;
+    int32_t y;
+    int64_t r_mid_fp8;
+    int64_t half_t_fp8;
+
+    if (surf == NULL || surf->pixels == NULL || radius <= 0 || thickness <= 0 ||
+        SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    half_t_fp8 = (int64_t)thickness * 128;
+    r_mid_fp8 = (int64_t)radius * 256;
+    outer_r = radius + (thickness / 2) + 2;
+
+    y_min = (int32_t)SOL_MAX((int64_t)cy - outer_r, (int64_t)surf->clip.y);
+    y_max =
+        (int32_t)SOL_MIN((int64_t)cy + outer_r, (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+
+    for (y = y_min; y <= y_max; ++y) {
+        int64_t dy = (int64_t)y - (int64_t)cy;
+        uint64_t dy2_fp = (uint64_t)(dy * dy) << 16;
+        int32_t x_min = (int32_t)SOL_MAX((int64_t)cx - outer_r, (int64_t)surf->clip.x);
+        int32_t x_max = (int32_t)SOL_MIN((int64_t)cx + outer_r,
+                                         (int64_t)surf->clip.x + (int64_t)surf->clip.w - 1);
+        int32_t x;
+
+        for (x = x_min; x <= x_max; ++x) {
+            int64_t dx = (int64_t)x - (int64_t)cx;
+            int64_t dist_fp = (int64_t)sol__isqrt64(((uint64_t)(dx * dx) << 16) + dy2_fp);
+            int64_t diff = dist_fp - r_mid_fp8;
+            int64_t adiff = (diff < 0) ? -diff : diff;
+            int64_t cov = half_t_fp8 + 128 - adiff;
+
+            if (cov > 0) {
+                sol__plot_cov(surf, x, y, color, (cov >= 255) ? 255u : (uint8_t)cov);
+            }
+        }
+    }
+}
+
+void sol_fill_ellipse_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rx, int32_t ry,
+                         sol_color_t color) {
+    int32_t y_min;
+    int32_t y_max;
+    int32_t y;
+    int64_t rx2;
+    int64_t ry2;
+    int64_t threshold;
+
+    if (surf == NULL || surf->pixels == NULL || rx <= 0 || ry <= 0 || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+    if (rx == ry) {
+        sol_fill_circle_aa(surf, cx, cy, rx, color);
+        return;
+    }
+
+    rx2 = (int64_t)rx * (int64_t)rx;
+    ry2 = (int64_t)ry * (int64_t)ry;
+    threshold = rx2 * ry2 * 16; /* Scaled for 4x4 subpixel sampling */
+
+    y_min = (int32_t)SOL_MAX((int64_t)cy - (int64_t)ry - 1, (int64_t)surf->clip.y);
+    y_max = (int32_t)SOL_MIN((int64_t)cy + (int64_t)ry + 1,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+
+    for (y = y_min; y <= y_max; ++y) {
+        int32_t x_min = (int32_t)SOL_MAX((int64_t)cx - (int64_t)rx - 1, (int64_t)surf->clip.x);
+        int32_t x_max = (int32_t)SOL_MIN((int64_t)cx + (int64_t)rx + 1,
+                                         (int64_t)surf->clip.x + (int64_t)surf->clip.w - 1);
+        int32_t x;
+
+        for (x = x_min; x <= x_max; ++x) {
+            static const int32_t k_sub[4] = {-3, -1, 1, 3}; /* Eighths around pixel center */
+            int32_t hits = 0;
+            int sy;
+            int sx;
+
+            /* Fast center interior check */
+            int64_t cdx = ((int64_t)x - (int64_t)cx);
+            int64_t cdy = ((int64_t)y - (int64_t)cy);
+            if (cdx < 0) {
+                cdx = -cdx;
+            }
+            if (cdy < 0) {
+                cdy = -cdy;
+            }
+            if ((cdx + 1) * (cdx + 1) * ry2 + (cdy + 1) * (cdy + 1) * rx2 <= rx2 * ry2) {
+                sol__plot_cov(surf, x, y, color, 255u);
+                continue;
+            }
+
+            for (sy = 0; sy < 4; ++sy) {
+                int64_t qy = ((int64_t)y - (int64_t)cy) * 4 + k_sub[sy];
+                int64_t qy2 = qy * qy * rx2;
+                for (sx = 0; sx < 4; ++sx) {
+                    int64_t qx = ((int64_t)x - (int64_t)cx) * 4 + k_sub[sx];
+                    if (qx * qx * ry2 + qy2 <= threshold) {
+                        hits++;
+                    }
+                }
+            }
+            if (hits > 0) {
+                sol__plot_cov(surf, x, y, color, (uint8_t)((hits * 255) / 16));
+            }
+        }
+    }
+}
+
+void sol_fill_rounded_rect_ex_aa(sol_surface_t *surf, sol_rect_t rect, sol_corner_radii_t radii,
+                                 sol_color_t color) {
+    sol_rect_t r;
+    int32_t row;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 ||
+        SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    if (radii.tl < 0) {
+        radii.tl = 0;
+    }
+    if (radii.tr < 0) {
+        radii.tr = 0;
+    }
+    if (radii.br < 0) {
+        radii.br = 0;
+    }
+    if (radii.bl < 0) {
+        radii.bl = 0;
+    }
+    if (radii.tl + radii.tr > rect.w) {
+        int32_t s = radii.tl + radii.tr;
+        radii.tl = (int32_t)(((int64_t)radii.tl * rect.w) / s);
+        radii.tr = rect.w - radii.tl;
+    }
+    if (radii.bl + radii.br > rect.w) {
+        int32_t s = radii.bl + radii.br;
+        radii.bl = (int32_t)(((int64_t)radii.bl * rect.w) / s);
+        radii.br = rect.w - radii.bl;
+    }
+    if (radii.tl + radii.bl > rect.h) {
+        int32_t s = radii.tl + radii.bl;
+        radii.tl = (int32_t)(((int64_t)radii.tl * rect.h) / s);
+        radii.bl = rect.h - radii.tl;
+    }
+    if (radii.tr + radii.br > rect.h) {
+        int32_t s = radii.tr + radii.br;
+        radii.tr = (int32_t)(((int64_t)radii.tr * rect.h) / s);
+        radii.br = rect.h - radii.tr;
+    }
+
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 0 || r.h <= 0) {
+        return;
+    }
+
+    for (row = r.y; row < r.y + r.h; ++row) {
+        int32_t ly = row - rect.y;
+        int32_t left_r = 0;
+        int32_t right_r = 0;
+        bool left_top = false;
+        bool right_top = false;
+
+        if (ly < radii.tl) {
+            left_r = radii.tl;
+            left_top = true;
+        } else if (ly >= rect.h - radii.bl) {
+            left_r = radii.bl;
+        }
+
+        if (ly < radii.tr) {
+            right_r = radii.tr;
+            right_top = true;
+        } else if (ly >= rect.h - radii.br) {
+            right_r = radii.br;
+        }
+
+        if (left_r == 0 && right_r == 0) {
+            sol__hline_solid_clipped(surf, r.x, r.x + r.w - 1, row, color);
+        } else {
+            int32_t solid_x0 = rect.x + left_r;
+            int32_t solid_x1 = rect.x + rect.w - 1 - right_r;
+            int32_t col;
+
+            if (solid_x0 <= solid_x1) {
+                sol__hline_solid_clipped(surf, solid_x0, solid_x1, row, color);
+            }
+
+            /* Left corner AA band */
+            if (left_r > 0) {
+                int64_t cy2 = left_top ? ((int64_t)(rect.y + left_r) * 2)
+                                       : ((int64_t)(rect.y + rect.h - left_r) * 2);
+                int64_t cx2 = (int64_t)(rect.x + left_r) * 2;
+                int64_t py2 = (int64_t)row * 2 + 1;
+                int64_t dy = (py2 - cy2) * 128;
+                int64_t r_fp8 = (int64_t)left_r * 256;
+                int32_t x0 = (int32_t)SOL_MAX((int64_t)rect.x, (int64_t)r.x);
+                int32_t x1 = (int32_t)SOL_MIN((int64_t)solid_x0 - 1, (int64_t)r.x + r.w - 1);
+
+                for (col = x0; col <= x1; ++col) {
+                    int64_t dx = (cx2 - ((int64_t)col * 2 + 1)) * 128;
+                    int64_t dist = (int64_t)sol__isqrt64((uint64_t)(dx * dx) + (uint64_t)(dy * dy));
+                    int64_t cov = r_fp8 + 128 - dist;
+                    if (cov > 0) {
+                        sol__plot_cov(surf, col, row, color, (cov >= 255) ? 255u : (uint8_t)cov);
+                    }
+                }
+            }
+
+            /* Right corner AA band */
+            if (right_r > 0) {
+                int64_t cy2 = right_top ? ((int64_t)(rect.y + right_r) * 2)
+                                        : ((int64_t)(rect.y + rect.h - right_r) * 2);
+                int64_t cx2 = (int64_t)(rect.x + rect.w - right_r) * 2;
+                int64_t py2 = (int64_t)row * 2 + 1;
+                int64_t dy = (py2 - cy2) * 128;
+                int64_t r_fp8 = (int64_t)right_r * 256;
+                int32_t x0 = (int32_t)SOL_MAX((int64_t)solid_x1 + 1, (int64_t)r.x);
+                int32_t x1 = (int32_t)SOL_MIN((int64_t)rect.x + rect.w - 1, (int64_t)r.x + r.w - 1);
+
+                for (col = x0; col <= x1; ++col) {
+                    int64_t dx = (((int64_t)col * 2 + 1) - cx2) * 128;
+                    int64_t dist = (int64_t)sol__isqrt64((uint64_t)(dx * dx) + (uint64_t)(dy * dy));
+                    int64_t cov = r_fp8 + 128 - dist;
+                    if (cov > 0) {
+                        sol__plot_cov(surf, col, row, color, (cov >= 255) ? 255u : (uint8_t)cov);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void sol_fill_rounded_rect_aa(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                              sol_color_t color) {
+    sol_fill_rounded_rect_ex_aa(surf, rect, SOL_CORNERS(radius, radius, radius, radius), color);
+}
+
+void sol_draw_rounded_rect_aa(sol_surface_t *surf, sol_rect_t rect, int32_t radius,
+                              int32_t thickness, sol_color_t color) {
+    sol_rect_t r;
+    int32_t rad;
+    int32_t row;
+    int32_t col;
+    int32_t bx0;
+    int32_t by0;
+    int32_t bx1;
+    int32_t by1;
+    int32_t t_fp8;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 || thickness <= 0 ||
+        SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    rad = SOL_MIN(SOL_MAX(radius, 0), SOL_MIN(rect.w, rect.h) / 2);
+    t_fp8 = thickness * 256;
+    bx0 = rect.x;
+    by0 = rect.y;
+    bx1 = rect.x + rect.w;
+    by1 = rect.y + rect.h;
+
+    r = sol_rect_intersect(SOL_RECT(rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2), surf->clip);
+    if (r.w <= 0 || r.h <= 0) {
+        return;
+    }
+
+    for (row = r.y; row < r.y + r.h; ++row) {
+        int32_t ly = row - rect.y;
+        bool in_flat_mid = (ly >= rad + thickness && ly < rect.h - rad - thickness);
+
+        for (col = r.x; col < r.x + r.w; ++col) {
+            if (in_flat_mid && col >= rect.x + thickness + 1 &&
+                col < rect.x + rect.w - thickness - 1) {
+                /* Skip completely hollow interior */
+                col = rect.x + rect.w - thickness - 2;
+                continue;
+            }
+            {
+                int32_t sd = sol__sdf_rounded_box_fp8(col, row, bx0, by0, bx1, by1, rad);
+                int32_t cov_out = 128 - sd;
+                int32_t cov_in = sd + t_fp8 + 128;
+                int32_t cov = SOL_MIN(cov_out, cov_in);
+
+                if (cov > 0) {
+                    sol__plot_cov(surf, col, row, color, (cov >= 255) ? 255u : (uint8_t)cov);
+                }
+            }
+        }
+    }
+}
+
+SOL_PRIVATE int64_t sol__edge_fn(int64_t ax, int64_t ay, int64_t bx, int64_t by, int64_t px,
+                                 int64_t py) {
+    return (px - ax) * (by - ay) - (py - ay) * (bx - ax);
+}
+
+void sol_fill_triangle_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+                          int32_t x2, int32_t y2, sol_color_t color) {
+    int32_t min_x;
+    int32_t min_y;
+    int32_t max_x;
+    int32_t max_y;
+    int32_t y;
+    int32_t x;
+    int64_t area2;
+
+    if (surf == NULL || surf->pixels == NULL || SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    area2 = sol__edge_fn(x0, y0, x1, y1, x2, y2);
+    if (area2 == 0) {
+        return;
+    }
+    if (area2 < 0) {
+        /* Ensure consistent winding */
+        int32_t tx = x1;
+        int32_t ty = y1;
+        x1 = x2;
+        y1 = y2;
+        x2 = tx;
+        y2 = ty;
+    }
+
+    min_x = (int32_t)SOL_MAX(SOL_MIN((int64_t)x0, SOL_MIN((int64_t)x1, (int64_t)x2)) - 1,
+                             (int64_t)surf->clip.x);
+    min_y = (int32_t)SOL_MAX(SOL_MIN((int64_t)y0, SOL_MIN((int64_t)y1, (int64_t)y2)) - 1,
+                             (int64_t)surf->clip.y);
+    max_x = (int32_t)SOL_MIN(SOL_MAX((int64_t)x0, SOL_MAX((int64_t)x1, (int64_t)x2)) + 1,
+                             (int64_t)surf->clip.x + (int64_t)surf->clip.w - 1);
+    max_y = (int32_t)SOL_MIN(SOL_MAX((int64_t)y0, SOL_MAX((int64_t)y1, (int64_t)y2)) + 1,
+                             (int64_t)surf->clip.y + (int64_t)surf->clip.h - 1);
+
+    if (min_x > max_x || min_y > max_y) {
+        return;
+    }
+
+    {
+        /* Precompute bounding-box edge tolerance for fast interior check (coordinates scaled by 4)
+         */
+        int64_t sx0 = (int64_t)x0 * 4;
+        int64_t sy0 = (int64_t)y0 * 4;
+        int64_t sx1 = (int64_t)x1 * 4;
+        int64_t sy1 = (int64_t)y1 * 4;
+        int64_t sx2 = (int64_t)x2 * 4;
+        int64_t sy2 = (int64_t)y2 * 4;
+
+        for (y = min_y; y <= max_y; ++y) {
+            for (x = min_x; x <= max_x; ++x) {
+                static const int32_t k_off[4] = {0, 1, 2, 3};
+                int32_t hits = 0;
+                int sy;
+                int sx;
+
+                for (sy = 0; sy < 4; ++sy) {
+                    int64_t py = (int64_t)y * 4 + k_off[sy];
+                    for (sx = 0; sx < 4; ++sx) {
+                        int64_t px = (int64_t)x * 4 + k_off[sx];
+                        if (sol__edge_fn(sx0, sy0, sx1, sy1, px, py) >= 0 &&
+                            sol__edge_fn(sx1, sy1, sx2, sy2, px, py) >= 0 &&
+                            sol__edge_fn(sx2, sy2, sx0, sy0, px, py) >= 0) {
+                            hits++;
+                        }
+                    }
+                }
+                if (hits > 0) {
+                    sol__plot_cov(surf, x, y, color, (uint8_t)((hits * 255) / 16));
+                }
+            }
+        }
+    }
+}
+/* === END sol_aa.c === */
+
+/* === BEGIN sol_fx.c === */
+
+#define SOL__MAX_BLUR_RADIUS 64
+
+SOL_PRIVATE void sol__stackblur_span(uint32_t *base, int32_t len, int32_t step, int32_t rad) {
+    uint32_t stack[SOL__MAX_BLUR_RADIUS * 2 + 1];
+    int32_t div = rad * 2 + 1;
+    uint32_t divsum = (uint32_t)(rad + 1) * (uint32_t)(rad + 1);
+    uint32_t sum_a = 0u;
+    uint32_t sum_r = 0u;
+    uint32_t sum_g = 0u;
+    uint32_t sum_b = 0u;
+    uint32_t in_a = 0u;
+    uint32_t in_r = 0u;
+    uint32_t in_g = 0u;
+    uint32_t in_b = 0u;
+    uint32_t out_a = 0u;
+    uint32_t out_r = 0u;
+    uint32_t out_g = 0u;
+    uint32_t out_b = 0u;
+    int32_t stack_ptr = rad;
+    int32_t i;
+    int32_t pos;
+
+    if (len <= 1) {
+        return;
+    }
+
+    for (i = -rad; i <= rad; ++i) {
+        int32_t s = (i < 0) ? 0 : ((i >= len) ? (len - 1) : i);
+        uint32_t p = base[(size_t)s * (size_t)step];
+        uint32_t w = (uint32_t)(rad + 1 - (i < 0 ? -i : i));
+        uint32_t pa = SOL_COLOR_A(p);
+        uint32_t pr = SOL_COLOR_R(p);
+        uint32_t pg = SOL_COLOR_G(p);
+        uint32_t pb = SOL_COLOR_B(p);
+
+        stack[i + rad] = p;
+        sum_a += pa * w;
+        sum_r += pr * w;
+        sum_g += pg * w;
+        sum_b += pb * w;
+
+        if (i > 0) {
+            in_a += pa;
+            in_r += pr;
+            in_g += pg;
+            in_b += pb;
+        } else {
+            out_a += pa;
+            out_r += pr;
+            out_g += pg;
+            out_b += pb;
+        }
+    }
+
+    for (pos = 0; pos < len; ++pos) {
+        uint32_t nxt_c;
+        uint32_t old_c;
+        int32_t next_pos;
+        int32_t stack_start;
+
+        base[(size_t)pos * (size_t)step] =
+            SOL_ARGB(sum_a / divsum, sum_r / divsum, sum_g / divsum, sum_b / divsum);
+
+        sum_a -= out_a;
+        sum_r -= out_r;
+        sum_g -= out_g;
+        sum_b -= out_b;
+
+        stack_start = stack_ptr - rad + div;
+        if (stack_start >= div) {
+            stack_start -= div;
+        }
+
+        old_c = stack[stack_start];
+        out_a -= SOL_COLOR_A(old_c);
+        out_r -= SOL_COLOR_R(old_c);
+        out_g -= SOL_COLOR_G(old_c);
+        out_b -= SOL_COLOR_B(old_c);
+
+        next_pos = pos + rad + 1;
+        if (next_pos >= len) {
+            next_pos = len - 1;
+        }
+        nxt_c = base[(size_t)next_pos * (size_t)step];
+        stack[stack_start] = nxt_c;
+
+        in_a += SOL_COLOR_A(nxt_c);
+        in_r += SOL_COLOR_R(nxt_c);
+        in_g += SOL_COLOR_G(nxt_c);
+        in_b += SOL_COLOR_B(nxt_c);
+
+        sum_a += in_a;
+        sum_r += in_r;
+        sum_g += in_g;
+        sum_b += in_b;
+
+        stack_ptr++;
+        if (stack_ptr >= div) {
+            stack_ptr = 0;
+        }
+        {
+            uint32_t mid_c = stack[stack_ptr];
+            out_a += SOL_COLOR_A(mid_c);
+            out_r += SOL_COLOR_R(mid_c);
+            out_g += SOL_COLOR_G(mid_c);
+            out_b += SOL_COLOR_B(mid_c);
+            in_a -= SOL_COLOR_A(mid_c);
+            in_r -= SOL_COLOR_R(mid_c);
+            in_g -= SOL_COLOR_G(mid_c);
+            in_b -= SOL_COLOR_B(mid_c);
+        }
+    }
+}
+
+void sol_blur_rect(sol_surface_t *surf, sol_rect_t rect, int32_t radius) {
+    sol_rect_t r;
+    int32_t rad;
+    int32_t x;
+    int32_t y;
+
+    if (surf == NULL || surf->pixels == NULL || radius <= 0) {
+        return;
+    }
+
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 1 || r.h <= 1) {
+        return;
+    }
+
+    rad = (radius > SOL__MAX_BLUR_RADIUS) ? SOL__MAX_BLUR_RADIUS : radius;
+
+    for (y = 0; y < r.h; ++y) {
+        sol__stackblur_span(surf->pixels + (size_t)(r.y + y) * (size_t)surf->stride + (size_t)r.x,
+                            r.w, 1, rad);
+    }
+    for (x = 0; x < r.w; ++x) {
+        sol__stackblur_span(surf->pixels + (size_t)r.y * (size_t)surf->stride + (size_t)(r.x + x),
+                            r.h, surf->stride, rad);
+    }
+}
+
+void sol_blur_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t corner_radius,
+                           int32_t blur_radius) {
+    sol_rect_t r;
+    int32_t cr;
+    int32_t rad;
+    int32_t row;
+    int32_t col;
+    uint64_t cr2;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 1 || rect.h <= 1 || blur_radius <= 0) {
+        return;
+    }
+    if (corner_radius <= 0) {
+        sol_blur_rect(surf, rect, blur_radius);
+        return;
+    }
+
+    cr = SOL_MIN(corner_radius, SOL_MIN(rect.w, rect.h) / 2);
+    if (cr <= 0) {
+        sol_blur_rect(surf, rect, blur_radius);
+        return;
+    }
+
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 1 || r.h <= 1) {
+        return;
+    }
+
+    rad = (blur_radius > SOL__MAX_BLUR_RADIUS) ? SOL__MAX_BLUR_RADIUS : blur_radius;
+    cr2 = (uint64_t)cr * (uint64_t)cr;
+
+    /* Pass 1: Horizontal spans trimmed to rounded corners */
+    for (row = r.y; row < r.y + r.h; ++row) {
+        int32_t ly = row - rect.y;
+        int32_t inset = 0;
+
+        if (ly < cr) {
+            int64_t dy = (int64_t)cr - (int64_t)ly;
+            inset = cr - (int32_t)sol__isqrt64(cr2 - (uint64_t)(dy * dy));
+        } else if (ly >= rect.h - cr) {
+            int64_t dy = (int64_t)ly - (int64_t)(rect.h - 1 - cr);
+            inset = cr - (int32_t)sol__isqrt64(cr2 - (uint64_t)(dy * dy));
+        }
+
+        {
+            int32_t x0 = (int32_t)SOL_MAX((int64_t)rect.x + inset, (int64_t)r.x);
+            int32_t x1 = (int32_t)SOL_MIN((int64_t)rect.x + rect.w - 1 - inset,
+                                          (int64_t)r.x + r.w - 1);
+            if (x1 > x0) {
+                sol__stackblur_span(surf->pixels + (size_t)row * (size_t)surf->stride + (size_t)x0,
+                                    x1 - x0 + 1, 1, rad);
+            }
+        }
+    }
+
+    /* Pass 2: Vertical spans trimmed to rounded corners */
+    for (col = r.x; col < r.x + r.w; ++col) {
+        int32_t lx = col - rect.x;
+        int32_t inset = 0;
+
+        if (lx < cr) {
+            int64_t dx = (int64_t)cr - (int64_t)lx;
+            inset = cr - (int32_t)sol__isqrt64(cr2 - (uint64_t)(dx * dx));
+        } else if (lx >= rect.w - cr) {
+            int64_t dx = (int64_t)lx - (int64_t)(rect.w - 1 - cr);
+            inset = cr - (int32_t)sol__isqrt64(cr2 - (uint64_t)(dx * dx));
+        }
+
+        {
+            int32_t y0 = (int32_t)SOL_MAX((int64_t)rect.y + inset, (int64_t)r.y);
+            int32_t y1 = (int32_t)SOL_MIN((int64_t)rect.y + rect.h - 1 - inset,
+                                          (int64_t)r.y + r.h - 1);
+            if (y1 > y0) {
+                sol__stackblur_span(surf->pixels + (size_t)y0 * (size_t)surf->stride + (size_t)col,
+                                    y1 - y0 + 1, surf->stride, rad);
+            }
+        }
+    }
+}
+
+void sol_draw_box_shadow(sol_surface_t *surf, sol_rect_t rect, int32_t corner_radius,
+                         int32_t offset_x, int32_t offset_y, int32_t blur_radius, int32_t spread,
+                         sol_color_t color) {
+    sol_rect_t box;
+    sol_rect_t outer;
+    sol_rect_t clip_r;
+    int32_t rad;
+    int32_t blur;
+    int32_t row;
+    int32_t col;
+    int64_t blur_fp8;
+
+    if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 ||
+        SOL_COLOR_A(color) == 0u) {
+        return;
+    }
+
+    box = sol_rect_inset(SOL_RECT(rect.x + offset_x, rect.y + offset_y, rect.w, rect.h), -spread,
+                         -spread);
+    if (box.w <= 0 || box.h <= 0) {
+        return;
+    }
+
+    blur = (blur_radius < 0) ? 0 : blur_radius;
+    rad = SOL_MIN(SOL_MAX(corner_radius + spread, 0), SOL_MIN(box.w, box.h) / 2);
+    if (blur == 0) {
+        sol_fill_rounded_rect_aa(surf, box, rad, color);
+        return;
+    }
+
+    outer = SOL_RECT(box.x - blur, box.y - blur, box.w + blur * 2, box.h + blur * 2);
+    clip_r = sol_rect_intersect(outer, surf->clip);
+    if (clip_r.w <= 0 || clip_r.h <= 0) {
+        return;
+    }
+
+    blur_fp8 = (int64_t)blur * 256;
+
+    {
+        int32_t core_x0 = box.x + SOL_MAX(rad, blur);
+        int32_t core_x1 = box.x + box.w - 1 - SOL_MAX(rad, blur);
+        int32_t core_y0 = box.y + SOL_MAX(rad, blur);
+        int32_t core_y1 = box.y + box.h - 1 - SOL_MAX(rad, blur);
+
+        for (row = clip_r.y; row < clip_r.y + clip_r.h; ++row) {
+            bool in_core_y = (core_x0 <= core_x1) && (row >= core_y0 && row <= core_y1);
+
+            for (col = clip_r.x; col < clip_r.x + clip_r.w; ++col) {
+                if (in_core_y && col == core_x0) {
+                    int32_t span_end = SOL_MIN(core_x1, clip_r.x + clip_r.w - 1);
+                    sol__hline_solid_clipped(surf, core_x0, span_end, row, color);
+                    col = span_end;
+                    continue;
+                }
+
+                {
+                    int32_t sd = sol__sdf_rounded_box_fp8(col, row, box.x, box.y, box.x + box.w,
+                                                          box.y + box.h, rad);
+                    if (sd <= -blur_fp8) {
+                        sol__plot_cov(surf, col, row, color, 255u);
+                    } else if (sd < blur_fp8) {
+                        /* Smooth cubic S-curve falloff across [-blur, +blur] */
+                        uint64_t t256 =
+                            (uint64_t)((blur_fp8 - sd) * 256) / (uint64_t)(2 * blur_fp8);
+                        if (t256 > 256u) {
+                            t256 = 256u;
+                        }
+                        uint64_t smooth = (t256 * t256 * (768u - 2u * t256)) >> 16;
+                        uint8_t cov = (smooth >= 255u) ? 255u : (uint8_t)smooth;
+                        sol__plot_cov(surf, col, row, color, cov);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void sol_apply_noise(sol_surface_t *surf, sol_rect_t rect, uint8_t amount, uint32_t seed) {
+    sol_rect_t r;
+    int32_t row;
+    int32_t col;
+    uint32_t state = (seed == 0u) ? 0x9E3779B9u : seed;
+
+    if (surf == NULL || surf->pixels == NULL || amount == 0u) {
+        return;
+    }
+
+    r = sol_rect_intersect(rect, surf->clip);
+    if (r.w <= 0 || r.h <= 0) {
+        return;
+    }
+
+    for (row = 0; row < r.h; ++row) {
+        uint32_t *dst = surf->pixels + (size_t)(r.y + row) * (size_t)surf->stride + (size_t)r.x;
+        for (col = 0; col < r.w; ++col) {
+            int32_t jitter;
+            uint32_t c = dst[col];
+            int32_t cr;
+            int32_t cg;
+            int32_t cb;
+
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+
+            jitter = (int32_t)(state % (uint32_t)(amount * 2u + 1u)) - (int32_t)amount;
+            cr = (int32_t)SOL_COLOR_R(c) + jitter;
+            cg = (int32_t)SOL_COLOR_G(c) + jitter;
+            cb = (int32_t)SOL_COLOR_B(c) + jitter;
+
+            cr = (cr < 0) ? 0 : ((cr > 255) ? 255 : cr);
+            cg = (cg < 0) ? 0 : ((cg > 255) ? 255 : cg);
+            cb = (cb < 0) ? 0 : ((cb > 255) ? 255 : cb);
+
+            dst[col] = SOL_ARGB(SOL_COLOR_A(c), cr, cg, cb);
+        }
+    }
+}
+/* === END sol_fx.c === */
 
 #endif /* SOLSTICESFG_IMPLEMENTATION_INCLUDED */
 #endif /* SOL_IMPLEMENTATION */
