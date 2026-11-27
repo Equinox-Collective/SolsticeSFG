@@ -202,4 +202,7 @@ static inline int32_t sol__sdf_rounded_box_fp8(int32_t px, int32_t py, int32_t b
     }
 }
 
+int32_t sol__sin_deg_fp16(int32_t deg);
+int32_t sol__cos_deg_fp16(int32_t deg);
+
 #endif /* SOL_INTERNAL_H */

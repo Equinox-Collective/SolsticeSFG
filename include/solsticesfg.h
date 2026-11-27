@@ -483,6 +483,55 @@ SOL_API void sol_stroke_path(sol_surface_t *surf, const sol_path_t *path, int32_
                              sol_line_cap_t cap, sol_line_join_t join, sol_color_t color,
                              sol_arena_t *scratch);
 
+/* ============================================================================
+ * Phase 4.1: Surface Blitting, 9-Slice, Scaling & 2x3 Affine Transforms
+ * ============================================================================ */
+
+typedef struct sol_9slice {
+    int32_t left;
+    int32_t top;
+    int32_t right;
+    int32_t bottom;
+} sol_9slice_t;
+
+#define SOL_9SLICE(l, t, r, b) ((sol_9slice_t){(l), (t), (r), (b)})
+
+/* 2x3 Affine matrix in 16.16 fixed-point: [a, b, tx, c, d, ty] */
+typedef struct sol_mat2x3 {
+    int32_t m[6];
+} sol_mat2x3_t;
+
+SOL_API sol_mat2x3_t sol_mat2x3_identity(void);
+SOL_API sol_mat2x3_t sol_mat2x3_translate(int32_t tx, int32_t ty);
+SOL_API sol_mat2x3_t sol_mat2x3_scale_fp16(int32_t sx_fp16, int32_t sy_fp16);
+SOL_API sol_mat2x3_t sol_mat2x3_rotate_deg(int32_t deg);
+SOL_API sol_mat2x3_t sol_mat2x3_mul(sol_mat2x3_t a, sol_mat2x3_t b);
+
+/* Core Blitting */
+SOL_API void sol_blit(sol_surface_t *dst, int32_t dx, int32_t dy, const sol_surface_t *src);
+SOL_API void sol_blit_rect(sol_surface_t *dst, int32_t dx, int32_t dy, const sol_surface_t *src,
+                           sol_rect_t src_rect, sol_blend_mode_t mode);
+SOL_API void sol_blit_tinted(sol_surface_t *dst, int32_t dx, int32_t dy, const sol_surface_t *src,
+                             sol_rect_t src_rect, sol_color_t tint);
+SOL_API void sol_blit_alpha_mask(sol_surface_t *dst, int32_t dx, int32_t dy, const uint8_t *mask,
+                                 int32_t mask_w, int32_t mask_h, int32_t mask_stride,
+                                 sol_rect_t src_rect, sol_color_t color);
+
+/* Scaling, 9-Slice & Affine Blit */
+SOL_API void sol_blit_scaled(sol_surface_t *dst, sol_rect_t dst_rect, const sol_surface_t *src,
+                             sol_rect_t src_rect, bool bilinear, sol_blend_mode_t mode);
+SOL_API void sol_blit_9slice(sol_surface_t *dst, sol_rect_t dst_rect, const sol_surface_t *src,
+                             sol_rect_t src_rect, sol_9slice_t margins, bool bilinear,
+                             sol_blend_mode_t mode);
+SOL_API void sol_blit_transformed(sol_surface_t *dst, const sol_surface_t *src, sol_rect_t src_rect,
+                                  sol_mat2x3_t transform, bool bilinear, sol_blend_mode_t mode);
+
+/* Orientation Helpers */
+SOL_API void sol_surface_flip_h(sol_surface_t *surf);
+SOL_API void sol_surface_flip_v(sol_surface_t *surf);
+SOL_API sol_status_t sol_surface_rotate_90(sol_surface_t *dst, const sol_surface_t *src,
+                                           int32_t cw_turns);
+
 #ifdef __cplusplus
 }
 #endif
