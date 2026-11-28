@@ -233,9 +233,12 @@ sol_color_t sol_color_blend_premul(sol_color_t dst_pm, sol_color_t src_pm) {
 
     inv_sa = 255u - sa;
     uint32_t a = sa + sol__div255((uint32_t)SOL_COLOR_A(dst_pm) * inv_sa);
-    uint32_t r = (uint32_t)SOL_COLOR_R(src_pm) + sol__div255((uint32_t)SOL_COLOR_R(dst_pm) * inv_sa);
-    uint32_t g = (uint32_t)SOL_COLOR_G(src_pm) + sol__div255((uint32_t)SOL_COLOR_G(dst_pm) * inv_sa);
-    uint32_t b = (uint32_t)SOL_COLOR_B(src_pm) + sol__div255((uint32_t)SOL_COLOR_B(dst_pm) * inv_sa);
+    uint32_t r =
+        (uint32_t)SOL_COLOR_R(src_pm) + sol__div255((uint32_t)SOL_COLOR_R(dst_pm) * inv_sa);
+    uint32_t g =
+        (uint32_t)SOL_COLOR_G(src_pm) + sol__div255((uint32_t)SOL_COLOR_G(dst_pm) * inv_sa);
+    uint32_t b =
+        (uint32_t)SOL_COLOR_B(src_pm) + sol__div255((uint32_t)SOL_COLOR_B(dst_pm) * inv_sa);
 
     return SOL_ARGB((a > 255u) ? 255u : a, (r > 255u) ? 255u : r, (g > 255u) ? 255u : g,
                     (b > 255u) ? 255u : b);
@@ -451,8 +454,8 @@ sol_status_t sol_color_from_hex(const char *hex, sol_color_t *out_color) {
         return SOL_OK;
     }
     if (len == 6u) {
-        *out_color = SOL_RGB((vals[0] << 4) | vals[1], (vals[2] << 4) | vals[3],
-                             (vals[4] << 4) | vals[5]);
+        *out_color =
+            SOL_RGB((vals[0] << 4) | vals[1], (vals[2] << 4) | vals[3], (vals[4] << 4) | vals[5]);
         return SOL_OK;
     }
     if (len == 8u) {
@@ -603,8 +606,9 @@ sol_color_t sol_gradient_eval(const sol_gradient_stop_t *stops, size_t count, ui
                 return stops[i + 1u].color;
             }
             uint8_t local_t = (uint8_t)(((uint32_t)(t - p0) * 255u) / (uint32_t)(p1 - p0));
-            return linear_gamma ? sol_color_lerp_linear(stops[i].color, stops[i + 1u].color, local_t)
-                                : sol_color_lerp(stops[i].color, stops[i + 1u].color, local_t);
+            return linear_gamma
+                       ? sol_color_lerp_linear(stops[i].color, stops[i + 1u].color, local_t)
+                       : sol_color_lerp(stops[i].color, stops[i + 1u].color, local_t);
         }
     }
 
@@ -688,9 +692,8 @@ void sol_fill_rect_gradient_radial(sol_surface_t *surf, sol_rect_t rect, int32_t
         for (col = r.x; col < r.x + r.w; ++col) {
             int64_t dx = (int64_t)col - (int64_t)cx;
             uint64_t dist = (uint64_t)sol__isqrt64((uint64_t)(dx * dx) + dy2);
-            uint8_t t = (dist >= (uint64_t)radius)
-                            ? 255u
-                            : (uint8_t)((dist * 255ull) / (uint64_t)radius);
+            uint8_t t =
+                (dist >= (uint64_t)radius) ? 255u : (uint8_t)((dist * 255ull) / (uint64_t)radius);
             sol_color_t c = sol_gradient_eval(stops, stop_count, t, linear_gamma);
             dst[col] = sol__blend_argb_fast(dst[col], c);
         }

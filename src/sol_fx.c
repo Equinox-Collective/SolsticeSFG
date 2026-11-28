@@ -187,8 +187,8 @@ void sol_blur_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t corner_
 
         {
             int32_t x0 = (int32_t)SOL_MAX((int64_t)rect.x + inset, (int64_t)r.x);
-            int32_t x1 = (int32_t)SOL_MIN((int64_t)rect.x + rect.w - 1 - inset,
-                                          (int64_t)r.x + r.w - 1);
+            int32_t x1 =
+                (int32_t)SOL_MIN((int64_t)rect.x + rect.w - 1 - inset, (int64_t)r.x + r.w - 1);
             if (x1 > x0) {
                 sol__stackblur_span(surf->pixels + (size_t)row * (size_t)surf->stride + (size_t)x0,
                                     x1 - x0 + 1, 1, rad);
@@ -211,8 +211,8 @@ void sol_blur_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t corner_
 
         {
             int32_t y0 = (int32_t)SOL_MAX((int64_t)rect.y + inset, (int64_t)r.y);
-            int32_t y1 = (int32_t)SOL_MIN((int64_t)rect.y + rect.h - 1 - inset,
-                                          (int64_t)r.y + r.h - 1);
+            int32_t y1 =
+                (int32_t)SOL_MIN((int64_t)rect.y + rect.h - 1 - inset, (int64_t)r.y + r.h - 1);
             if (y1 > y0) {
                 sol__stackblur_span(surf->pixels + (size_t)y0 * (size_t)surf->stride + (size_t)col,
                                     y1 - y0 + 1, surf->stride, rad);
