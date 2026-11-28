@@ -229,8 +229,6 @@ void sol_draw_box_shadow(sol_surface_t *surf, sol_rect_t rect, int32_t corner_ra
     sol_rect_t clip_r;
     int32_t rad;
     int32_t blur;
-    int32_t row;
-    int32_t col;
     int64_t blur_fp8;
 
     if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 ||
@@ -264,6 +262,8 @@ void sol_draw_box_shadow(sol_surface_t *surf, sol_rect_t rect, int32_t corner_ra
         int32_t core_x1 = box.x + box.w - 1 - SOL_MAX(rad, blur);
         int32_t core_y0 = box.y + SOL_MAX(rad, blur);
         int32_t core_y1 = box.y + box.h - 1 - SOL_MAX(rad, blur);
+        int32_t row;
+        int32_t col;
 
         for (row = clip_r.y; row < clip_r.y + clip_r.h; ++row) {
             bool in_core_y = (core_x0 <= core_x1) && (row >= core_y0 && row <= core_y1);

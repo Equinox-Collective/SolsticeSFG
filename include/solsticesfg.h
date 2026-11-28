@@ -178,7 +178,6 @@ SOL_API sol_rect_t sol_dirty_bounding_box(const sol_dirty_tracker_t *dt);
 
 /* Geometry Helpers */
 SOL_API sol_rect_t sol_rect_intersect(sol_rect_t a, sol_rect_t b);
-SOL_API sol_rect_t sol_rect_intersect(sol_rect_t a, sol_rect_t b);
 SOL_API sol_rect_t sol_rect_union(sol_rect_t a, sol_rect_t b);
 SOL_API sol_rect_t sol_rect_inset(sol_rect_t rect, int32_t dx, int32_t dy);
 SOL_API bool sol_rect_contains_point(sol_rect_t rect, int32_t x, int32_t y);

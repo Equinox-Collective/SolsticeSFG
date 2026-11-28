@@ -103,7 +103,6 @@ void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t
     int32_t max_y;
     int32_t min_x;
     int32_t max_x;
-    int32_t y;
 
     if (surf == NULL || surf->pixels == NULL || thickness <= 0 || SOL_COLOR_A(color) == 0u) {
         return;
@@ -151,6 +150,7 @@ void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t
         int64_t x_span_margin = (ady > 0)
                                     ? (((int64_t)pad * (int64_t)(len_fp8 >> 8) + ady - 1) / ady) + 2
                                     : (max_x - min_x + 1);
+        int32_t y;
 
         for (y = min_y; y <= max_y; ++y) {
             int32_t row_x0 = min_x;
@@ -231,7 +231,6 @@ void sol_fill_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rad
     for (y = y_min; y <= y_max; ++y) {
         int64_t dy = (int64_t)y - (int64_t)cy;
         uint64_t dy2_fp = (uint64_t)(dy * dy) << 16;
-        int32_t dx_outer = radius + 1;
         int32_t dx_solid = 0;
 
         if ((uint64_t)(dy * dy) < (uint64_t)(r_inner * r_inner)) {
@@ -243,6 +242,7 @@ void sol_fill_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rad
         }
 
         {
+            int32_t dx_outer = radius + 1;
             int32_t x_left_start = cx - dx_outer;
             int32_t x_left_end = (dx_solid > 0) ? (cx - dx_solid) : (cx + dx_outer);
             int32_t x;
@@ -577,8 +577,6 @@ void sol_fill_triangle_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x
     int32_t min_y;
     int32_t max_x;
     int32_t max_y;
-    int32_t y;
-    int32_t x;
     int64_t area2;
 
     if (surf == NULL || surf->pixels == NULL || SOL_COLOR_A(color) == 0u) {
@@ -621,6 +619,8 @@ void sol_fill_triangle_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x
         int64_t sy1 = (int64_t)y1 * 4;
         int64_t sx2 = (int64_t)x2 * 4;
         int64_t sy2 = (int64_t)y2 * 4;
+        int32_t y;
+        int32_t x;
 
         for (y = min_y; y <= max_y; ++y) {
             for (x = min_x; x <= max_x; ++x) {

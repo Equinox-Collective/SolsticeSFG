@@ -226,10 +226,6 @@ SOL_PRIVATE sol_color_t sol__sample_bilinear(const sol_surface_t *src, sol_rect_
     int32_t y0 = (int32_t)(sy_fp16 >> 16);
     int32_t x1 = x0 + 1;
     int32_t y1 = y0 + 1;
-    uint32_t fx = (uint32_t)((sx_fp16 >> 8) & 0xFF);
-    uint32_t fy = (uint32_t)((sy_fp16 >> 8) & 0xFF);
-    uint32_t ifx = 256u - fx;
-    uint32_t ify = 256u - fy;
     int32_t max_x = sr.x + sr.w - 1;
     int32_t max_y = sr.y + sr.h - 1;
 
@@ -255,7 +251,10 @@ SOL_PRIVATE sol_color_t sol__sample_bilinear(const sol_surface_t *src, sol_rect_
             sol_color_premul(src->pixels[(size_t)y1 * (size_t)src->stride + (size_t)x0]);
         sol_color_t p11 =
             sol_color_premul(src->pixels[(size_t)y1 * (size_t)src->stride + (size_t)x1]);
-
+        uint32_t fx = (uint32_t)((sx_fp16 >> 8) & 0xFF);
+        uint32_t fy = (uint32_t)((sy_fp16 >> 8) & 0xFF);
+        uint32_t ifx = 256u - fx;
+        uint32_t ify = 256u - fy;
         uint32_t w00 = ifx * ify;
         uint32_t w10 = fx * ify;
         uint32_t w01 = ifx * fy;
@@ -447,8 +446,6 @@ void sol_blit_transformed(sol_surface_t *dst, const sol_surface_t *src, sol_rect
     int64_t max_x = INT64_MIN;
     int64_t max_y = INT64_MIN;
     sol_rect_t bbox;
-    int32_t py;
-    int32_t px;
 
     if (dst == NULL || dst->pixels == NULL || src == NULL || src->pixels == NULL) {
         return;
@@ -518,6 +515,8 @@ void sol_blit_transformed(sol_surface_t *dst, const sol_surface_t *src, sol_rect
         int64_t c = transform.m[3];
         int64_t d = transform.m[4];
         int64_t ty = transform.m[5];
+        int32_t py;
+        int32_t px;
 
         for (py = bbox.y; py < bbox.y + bbox.h; ++py) {
             uint32_t *d_row = dst->pixels + (size_t)py * (size_t)dst->stride;

@@ -1085,7 +1085,7 @@ void sol_draw_arc(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius, i
     err = 1 - radius;
 
     {
-        int32_t pts[4][2] = {{0, -radius}, {0, radius}, {-radius, 0}, {radius, 0}};
+        const int32_t pts[4][2] = {{0, -radius}, {0, radius}, {-radius, 0}, {radius, 0}};
         int i;
         for (i = 0; i < 4; ++i) {
             if (sol__angle_in_range(sol__atan2_deg(pts[i][1], pts[i][0]), s_norm, span)) {
@@ -1107,8 +1107,8 @@ void sol_draw_arc(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius, i
         }
 
         {
-            int32_t oct[8][2] = {{x, y}, {-x, y}, {x, -y}, {-x, -y},
-                                 {y, x}, {-y, x}, {y, -x}, {-y, -x}};
+            const int32_t oct[8][2] = {{x, y}, {-x, y}, {x, -y}, {-x, -y},
+                                       {y, x}, {-y, x}, {y, -x}, {-y, -x}};
             int count = (x == y) ? 4 : 8;
             int i;
             for (i = 0; i < count; ++i) {

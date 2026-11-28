@@ -195,7 +195,6 @@ SOL_API sol_rect_t sol_dirty_bounding_box(const sol_dirty_tracker_t *dt);
 
 /* Geometry Helpers */
 SOL_API sol_rect_t sol_rect_intersect(sol_rect_t a, sol_rect_t b);
-SOL_API sol_rect_t sol_rect_intersect(sol_rect_t a, sol_rect_t b);
 SOL_API sol_rect_t sol_rect_union(sol_rect_t a, sol_rect_t b);
 SOL_API sol_rect_t sol_rect_inset(sol_rect_t rect, int32_t dx, int32_t dy);
 SOL_API bool sol_rect_contains_point(sol_rect_t rect, int32_t x, int32_t y);
@@ -1436,9 +1435,12 @@ sol_color_t sol_color_blend_premul(sol_color_t dst_pm, sol_color_t src_pm) {
 
     inv_sa = 255u - sa;
     uint32_t a = sa + sol__div255((uint32_t)SOL_COLOR_A(dst_pm) * inv_sa);
-    uint32_t r = (uint32_t)SOL_COLOR_R(src_pm) + sol__div255((uint32_t)SOL_COLOR_R(dst_pm) * inv_sa);
-    uint32_t g = (uint32_t)SOL_COLOR_G(src_pm) + sol__div255((uint32_t)SOL_COLOR_G(dst_pm) * inv_sa);
-    uint32_t b = (uint32_t)SOL_COLOR_B(src_pm) + sol__div255((uint32_t)SOL_COLOR_B(dst_pm) * inv_sa);
+    uint32_t r =
+        (uint32_t)SOL_COLOR_R(src_pm) + sol__div255((uint32_t)SOL_COLOR_R(dst_pm) * inv_sa);
+    uint32_t g =
+        (uint32_t)SOL_COLOR_G(src_pm) + sol__div255((uint32_t)SOL_COLOR_G(dst_pm) * inv_sa);
+    uint32_t b =
+        (uint32_t)SOL_COLOR_B(src_pm) + sol__div255((uint32_t)SOL_COLOR_B(dst_pm) * inv_sa);
 
     return SOL_ARGB((a > 255u) ? 255u : a, (r > 255u) ? 255u : r, (g > 255u) ? 255u : g,
                     (b > 255u) ? 255u : b);
@@ -1491,7 +1493,7 @@ void sol_color_to_hsv(sol_color_t color, uint16_t *out_hue, uint8_t *out_sat, ui
     int32_t h = 0;
     uint8_t s = 0u;
 
-    if (delta > 0u && max_c > 0u) {
+    if (delta > 0u) {
         s = (uint8_t)((delta * 255u + (max_c >> 1)) / max_c);
         if (max_c == r) {
             h = (60 * ((int32_t)g - (int32_t)b)) / (int32_t)delta;
@@ -1626,7 +1628,6 @@ SOL_PRIVATE int sol__hex_digit(char c) {
 sol_status_t sol_color_from_hex(const char *hex, sol_color_t *out_color) {
     size_t len = 0u;
     uint32_t vals[8];
-    size_t i;
 
     if (hex == NULL || out_color == NULL) {
         return SOL_ERR_INVALID_ARG;
@@ -1654,11 +1655,12 @@ sol_status_t sol_color_from_hex(const char *hex, sol_color_t *out_color) {
         return SOL_OK;
     }
     if (len == 6u) {
-        *out_color = SOL_RGB((vals[0] << 4) | vals[1], (vals[2] << 4) | vals[3],
-                             (vals[4] << 4) | vals[5]);
+        *out_color =
+            SOL_RGB((vals[0] << 4) | vals[1], (vals[2] << 4) | vals[3], (vals[4] << 4) | vals[5]);
         return SOL_OK;
     }
     if (len == 8u) {
+        size_t i;
         uint32_t acc = 0u;
         for (i = 0u; i < 8u; ++i) {
             acc = (acc << 4) | vals[i];
@@ -1806,8 +1808,9 @@ sol_color_t sol_gradient_eval(const sol_gradient_stop_t *stops, size_t count, ui
                 return stops[i + 1u].color;
             }
             uint8_t local_t = (uint8_t)(((uint32_t)(t - p0) * 255u) / (uint32_t)(p1 - p0));
-            return linear_gamma ? sol_color_lerp_linear(stops[i].color, stops[i + 1u].color, local_t)
-                                : sol_color_lerp(stops[i].color, stops[i + 1u].color, local_t);
+            return linear_gamma
+                       ? sol_color_lerp_linear(stops[i].color, stops[i + 1u].color, local_t)
+                       : sol_color_lerp(stops[i].color, stops[i + 1u].color, local_t);
         }
     }
 
@@ -1891,9 +1894,8 @@ void sol_fill_rect_gradient_radial(sol_surface_t *surf, sol_rect_t rect, int32_t
         for (col = r.x; col < r.x + r.w; ++col) {
             int64_t dx = (int64_t)col - (int64_t)cx;
             uint64_t dist = (uint64_t)sol__isqrt64((uint64_t)(dx * dx) + dy2);
-            uint8_t t = (dist >= (uint64_t)radius)
-                            ? 255u
-                            : (uint8_t)((dist * 255ull) / (uint64_t)radius);
+            uint8_t t =
+                (dist >= (uint64_t)radius) ? 255u : (uint8_t)((dist * 255ull) / (uint64_t)radius);
             sol_color_t c = sol_gradient_eval(stops, stop_count, t, linear_gamma);
             dst[col] = sol__blend_argb_fast(dst[col], c);
         }
@@ -3022,7 +3024,7 @@ void sol_draw_arc(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius, i
     err = 1 - radius;
 
     {
-        int32_t pts[4][2] = {{0, -radius}, {0, radius}, {-radius, 0}, {radius, 0}};
+        const int32_t pts[4][2] = {{0, -radius}, {0, radius}, {-radius, 0}, {radius, 0}};
         int i;
         for (i = 0; i < 4; ++i) {
             if (sol__angle_in_range(sol__atan2_deg(pts[i][1], pts[i][0]), s_norm, span)) {
@@ -3044,8 +3046,8 @@ void sol_draw_arc(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t radius, i
         }
 
         {
-            int32_t oct[8][2] = {{x, y}, {-x, y}, {x, -y}, {-x, -y},
-                                 {y, x}, {-y, x}, {y, -x}, {-y, -x}};
+            const int32_t oct[8][2] = {{x, y}, {-x, y}, {x, -y}, {-x, -y},
+                                       {y, x}, {-y, x}, {y, -x}, {-y, -x}};
             int count = (x == y) ? 4 : 8;
             int i;
             for (i = 0; i < count; ++i) {
@@ -3670,7 +3672,6 @@ void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t
     int32_t max_y;
     int32_t min_x;
     int32_t max_x;
-    int32_t y;
 
     if (surf == NULL || surf->pixels == NULL || thickness <= 0 || SOL_COLOR_A(color) == 0u) {
         return;
@@ -3718,6 +3719,7 @@ void sol_draw_line_thick_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t
         int64_t x_span_margin = (ady > 0)
                                     ? (((int64_t)pad * (int64_t)(len_fp8 >> 8) + ady - 1) / ady) + 2
                                     : (max_x - min_x + 1);
+        int32_t y;
 
         for (y = min_y; y <= max_y; ++y) {
             int32_t row_x0 = min_x;
@@ -3798,7 +3800,6 @@ void sol_fill_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rad
     for (y = y_min; y <= y_max; ++y) {
         int64_t dy = (int64_t)y - (int64_t)cy;
         uint64_t dy2_fp = (uint64_t)(dy * dy) << 16;
-        int32_t dx_outer = radius + 1;
         int32_t dx_solid = 0;
 
         if ((uint64_t)(dy * dy) < (uint64_t)(r_inner * r_inner)) {
@@ -3810,6 +3811,7 @@ void sol_fill_circle_aa(sol_surface_t *surf, int32_t cx, int32_t cy, int32_t rad
         }
 
         {
+            int32_t dx_outer = radius + 1;
             int32_t x_left_start = cx - dx_outer;
             int32_t x_left_end = (dx_solid > 0) ? (cx - dx_solid) : (cx + dx_outer);
             int32_t x;
@@ -4144,8 +4146,6 @@ void sol_fill_triangle_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x
     int32_t min_y;
     int32_t max_x;
     int32_t max_y;
-    int32_t y;
-    int32_t x;
     int64_t area2;
 
     if (surf == NULL || surf->pixels == NULL || SOL_COLOR_A(color) == 0u) {
@@ -4188,6 +4188,8 @@ void sol_fill_triangle_aa(sol_surface_t *surf, int32_t x0, int32_t y0, int32_t x
         int64_t sy1 = (int64_t)y1 * 4;
         int64_t sx2 = (int64_t)x2 * 4;
         int64_t sy2 = (int64_t)y2 * 4;
+        int32_t y;
+        int32_t x;
 
         for (y = min_y; y <= max_y; ++y) {
             for (x = min_x; x <= max_x; ++x) {
@@ -4405,8 +4407,8 @@ void sol_blur_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t corner_
 
         {
             int32_t x0 = (int32_t)SOL_MAX((int64_t)rect.x + inset, (int64_t)r.x);
-            int32_t x1 = (int32_t)SOL_MIN((int64_t)rect.x + rect.w - 1 - inset,
-                                          (int64_t)r.x + r.w - 1);
+            int32_t x1 =
+                (int32_t)SOL_MIN((int64_t)rect.x + rect.w - 1 - inset, (int64_t)r.x + r.w - 1);
             if (x1 > x0) {
                 sol__stackblur_span(surf->pixels + (size_t)row * (size_t)surf->stride + (size_t)x0,
                                     x1 - x0 + 1, 1, rad);
@@ -4429,8 +4431,8 @@ void sol_blur_rounded_rect(sol_surface_t *surf, sol_rect_t rect, int32_t corner_
 
         {
             int32_t y0 = (int32_t)SOL_MAX((int64_t)rect.y + inset, (int64_t)r.y);
-            int32_t y1 = (int32_t)SOL_MIN((int64_t)rect.y + rect.h - 1 - inset,
-                                          (int64_t)r.y + r.h - 1);
+            int32_t y1 =
+                (int32_t)SOL_MIN((int64_t)rect.y + rect.h - 1 - inset, (int64_t)r.y + r.h - 1);
             if (y1 > y0) {
                 sol__stackblur_span(surf->pixels + (size_t)y0 * (size_t)surf->stride + (size_t)col,
                                     y1 - y0 + 1, surf->stride, rad);
@@ -4447,8 +4449,6 @@ void sol_draw_box_shadow(sol_surface_t *surf, sol_rect_t rect, int32_t corner_ra
     sol_rect_t clip_r;
     int32_t rad;
     int32_t blur;
-    int32_t row;
-    int32_t col;
     int64_t blur_fp8;
 
     if (surf == NULL || surf->pixels == NULL || rect.w <= 0 || rect.h <= 0 ||
@@ -4482,6 +4482,8 @@ void sol_draw_box_shadow(sol_surface_t *surf, sol_rect_t rect, int32_t corner_ra
         int32_t core_x1 = box.x + box.w - 1 - SOL_MAX(rad, blur);
         int32_t core_y0 = box.y + SOL_MAX(rad, blur);
         int32_t core_y1 = box.y + box.h - 1 - SOL_MAX(rad, blur);
+        int32_t row;
+        int32_t col;
 
         for (row = clip_r.y; row < clip_r.y + clip_r.h; ++row) {
             bool in_core_y = (core_x0 <= core_x1) && (row >= core_y0 && row <= core_y1);
@@ -5757,10 +5759,6 @@ SOL_PRIVATE sol_color_t sol__sample_bilinear(const sol_surface_t *src, sol_rect_
     int32_t y0 = (int32_t)(sy_fp16 >> 16);
     int32_t x1 = x0 + 1;
     int32_t y1 = y0 + 1;
-    uint32_t fx = (uint32_t)((sx_fp16 >> 8) & 0xFF);
-    uint32_t fy = (uint32_t)((sy_fp16 >> 8) & 0xFF);
-    uint32_t ifx = 256u - fx;
-    uint32_t ify = 256u - fy;
     int32_t max_x = sr.x + sr.w - 1;
     int32_t max_y = sr.y + sr.h - 1;
 
@@ -5786,7 +5784,10 @@ SOL_PRIVATE sol_color_t sol__sample_bilinear(const sol_surface_t *src, sol_rect_
             sol_color_premul(src->pixels[(size_t)y1 * (size_t)src->stride + (size_t)x0]);
         sol_color_t p11 =
             sol_color_premul(src->pixels[(size_t)y1 * (size_t)src->stride + (size_t)x1]);
-
+        uint32_t fx = (uint32_t)((sx_fp16 >> 8) & 0xFF);
+        uint32_t fy = (uint32_t)((sy_fp16 >> 8) & 0xFF);
+        uint32_t ifx = 256u - fx;
+        uint32_t ify = 256u - fy;
         uint32_t w00 = ifx * ify;
         uint32_t w10 = fx * ify;
         uint32_t w01 = ifx * fy;
@@ -5978,8 +5979,6 @@ void sol_blit_transformed(sol_surface_t *dst, const sol_surface_t *src, sol_rect
     int64_t max_x = INT64_MIN;
     int64_t max_y = INT64_MIN;
     sol_rect_t bbox;
-    int32_t py;
-    int32_t px;
 
     if (dst == NULL || dst->pixels == NULL || src == NULL || src->pixels == NULL) {
         return;
@@ -6049,6 +6048,8 @@ void sol_blit_transformed(sol_surface_t *dst, const sol_surface_t *src, sol_rect
         int64_t c = transform.m[3];
         int64_t d = transform.m[4];
         int64_t ty = transform.m[5];
+        int32_t py;
+        int32_t px;
 
         for (py = bbox.y; py < bbox.y + bbox.h; ++py) {
             uint32_t *d_row = dst->pixels + (size_t)py * (size_t)dst->stride;

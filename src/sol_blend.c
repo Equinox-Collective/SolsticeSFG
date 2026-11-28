@@ -291,7 +291,7 @@ void sol_color_to_hsv(sol_color_t color, uint16_t *out_hue, uint8_t *out_sat, ui
     int32_t h = 0;
     uint8_t s = 0u;
 
-    if (delta > 0u && max_c > 0u) {
+    if (delta > 0u) {
         s = (uint8_t)((delta * 255u + (max_c >> 1)) / max_c);
         if (max_c == r) {
             h = (60 * ((int32_t)g - (int32_t)b)) / (int32_t)delta;
@@ -426,7 +426,6 @@ SOL_PRIVATE int sol__hex_digit(char c) {
 sol_status_t sol_color_from_hex(const char *hex, sol_color_t *out_color) {
     size_t len = 0u;
     uint32_t vals[8];
-    size_t i;
 
     if (hex == NULL || out_color == NULL) {
         return SOL_ERR_INVALID_ARG;
@@ -459,6 +458,7 @@ sol_status_t sol_color_from_hex(const char *hex, sol_color_t *out_color) {
         return SOL_OK;
     }
     if (len == 8u) {
+        size_t i;
         uint32_t acc = 0u;
         for (i = 0u; i < 8u; ++i) {
             acc = (acc << 4) | vals[i];
