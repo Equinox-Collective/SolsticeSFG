@@ -824,7 +824,7 @@ int32_t sol__cos_deg_fp16(int32_t deg);
 
 uint32_t *sol__img_alloc_pixels(sol_image_t *img, int32_t w, int32_t h, sol_arena_t *arena);
 void *sol__tmp_alloc(size_t size, sol_arena_t *arena);
-void sol__tmp_free(void *ptr, sol_arena_t *arena);
+void sol__tmp_free(void *ptr, const sol_arena_t *arena);
 
 #endif /* SOL_INTERNAL_H */
 /* === END sol_internal.h === */
@@ -6229,6 +6229,13 @@ sol_status_t sol_surface_rotate_90(sol_surface_t *dst, const sol_surface_t *src,
     #include <stdio.h>
 #endif
 
+#if !defined(SOL_FREESTANDING) && !defined(SOL_NO_STDIO)
+    #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+        #define _CRT_SECURE_NO_WARNINGS
+    #endif
+    #include <stdio.h>
+#endif
+
 SOL_PRIVATE uint16_t sol__read_le16(const uint8_t *p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
@@ -6309,7 +6316,7 @@ void *sol__tmp_alloc(size_t size, sol_arena_t *arena) {
     return SOL_MALLOC(size);
 }
 
-void sol__tmp_free(void *ptr, sol_arena_t *arena) {
+void sol__tmp_free(void *ptr, const sol_arena_t *arena) {
     if (arena == NULL && ptr != NULL) {
         SOL_FREE(ptr);
     }
@@ -6543,8 +6550,6 @@ sol_status_t sol_image_encode_ppm(const sol_surface_t *surf, uint8_t *out_buf, s
     char hdr[48];
     size_t hdr_len = 0u;
     size_t needed;
-    int32_t y;
-    int32_t x;
 
     if (surf == NULL || surf->pixels == NULL || surf->width <= 0 || surf->height <= 0) {
         return SOL_ERR_INVALID_ARG;
@@ -6598,6 +6603,8 @@ sol_status_t sol_image_encode_ppm(const sol_surface_t *surf, uint8_t *out_buf, s
 
     SOL_MEMCPY(out_buf, hdr, hdr_len);
     {
+        int32_t y;
+        int32_t x;
         size_t pos = hdr_len;
         for (y = 0; y < surf->height; ++y) {
             const uint32_t *row = surf->pixels + (size_t)y * (size_t)surf->stride;
@@ -6662,7 +6669,6 @@ sol_status_t sol_image_load_bmp_mem(sol_image_t *img, const uint8_t *data, size_
     uint32_t a_mask = 0xFF000000u;
     uint32_t *px;
     size_t row_stride;
-    int32_t y;
 
     if (img == NULL || data == NULL || size < 54u) {
         return SOL_ERR_INVALID_ARG;
@@ -6730,6 +6736,7 @@ sol_status_t sol_image_load_bmp_mem(sol_image_t *img, const uint8_t *data, size_
     }
 
     {
+        int32_t y;
         bool any_alpha = false;
         for (y = 0; y < h; ++y) {
             int32_t dst_y = top_down ? y : (h - 1 - y);
@@ -6780,8 +6787,6 @@ sol_status_t sol_image_encode_bmp(const sol_surface_t *surf, uint8_t *out_buf, s
                                   size_t *out_written) {
     size_t px_bytes;
     size_t total;
-    int32_t y;
-    int32_t x;
 
     if (surf == NULL || surf->pixels == NULL || surf->width <= 0 || surf->height <= 0) {
         return SOL_ERR_INVALID_ARG;
@@ -6814,6 +6819,8 @@ sol_status_t sol_image_encode_bmp(const sol_surface_t *surf, uint8_t *out_buf, s
     sol__write_le32(out_buf + 34, (uint32_t)px_bytes);
 
     {
+        int32_t y;
+        int32_t x;
         size_t pos = 54u;
         for (y = 0; y < surf->height; ++y) {
             const uint32_t *row = surf->pixels + (size_t)y * (size_t)surf->stride;
@@ -7127,8 +7134,6 @@ sol_status_t sol_image_encode_qoi(const sol_surface_t *surf, uint8_t *out_buf, s
     uint8_t pa = 255u;
     size_t run = 0u;
     size_t pos = 14u;
-    int32_t y;
-    int32_t x;
 
     if (surf == NULL || surf->pixels == NULL || surf->width <= 0 || surf->height <= 0) {
         return SOL_ERR_INVALID_ARG;
@@ -7159,105 +7164,110 @@ sol_status_t sol_image_encode_qoi(const sol_surface_t *surf, uint8_t *out_buf, s
 
     SOL_MEMSET(index, 0, sizeof(index));
 
-    for (y = 0; y < surf->height; ++y) {
-        const uint32_t *row = surf->pixels + (size_t)y * (size_t)surf->stride;
-        for (x = 0; x < surf->width; ++x) {
-            uint32_t c = row[x];
-            uint8_t a = SOL_COLOR_A(c);
-            uint8_t r = SOL_COLOR_R(c);
-            uint8_t g = SOL_COLOR_G(c);
-            uint8_t b = SOL_COLOR_B(c);
-            bool is_last = (y == surf->height - 1) && (x == surf->width - 1);
+    {
+        int32_t y;
+        for (y = 0; y < surf->height; ++y) {
+            const uint32_t *row = surf->pixels + (size_t)y * (size_t)surf->stride;
+            int32_t x;
+            for (x = 0; x < surf->width; ++x) {
+                uint32_t c = row[x];
+                uint8_t a = SOL_COLOR_A(c);
+                uint8_t r = SOL_COLOR_R(c);
+                uint8_t g = SOL_COLOR_G(c);
+                uint8_t b = SOL_COLOR_B(c);
+                bool is_last = (y == surf->height - 1) && (x == surf->width - 1);
 
-            if (r == pr && g == pg && b == pb && a == pa) {
-                run++;
-                if (run == 62u || is_last) {
-                    if (pos + 1u > capacity) {
-                        return SOL_ERR_OUT_OF_BOUNDS;
-                    }
-                    out_buf[pos++] = (uint8_t)(0xC0u | (run - 1u));
-                    run = 0u;
-                }
-            } else {
-                if (run > 0u) {
-                    if (pos + 1u > capacity) {
-                        return SOL_ERR_OUT_OF_BOUNDS;
-                    }
-                    out_buf[pos++] = (uint8_t)(0xC0u | (run - 1u));
-                    run = 0u;
-                }
-
-                {
-                    uint32_t h_idx = sol__qoi_hash(r, g, b, a);
-                    if (index[h_idx] == c) {
+                if (r == pr && g == pg && b == pb && a == pa) {
+                    run++;
+                    if (run == 62u || is_last) {
                         if (pos + 1u > capacity) {
                             return SOL_ERR_OUT_OF_BOUNDS;
                         }
-                        out_buf[pos++] = (uint8_t)h_idx;
-                    } else {
-                        index[h_idx] = c;
-                        if (a == pa) {
-                            int8_t vr = (int8_t)((int)r - (int)pr);
-                            int8_t vg = (int8_t)((int)g - (int)pg);
-                            int8_t vb = (int8_t)((int)b - (int)pb);
-                            int8_t vrg = (int8_t)(vr - vg);
-                            int8_t vbg = (int8_t)(vb - vg);
+                        out_buf[pos++] = (uint8_t)(0xC0u | (run - 1u));
+                        run = 0u;
+                    }
+                } else {
+                    if (run > 0u) {
+                        if (pos + 1u > capacity) {
+                            return SOL_ERR_OUT_OF_BOUNDS;
+                        }
+                        out_buf[pos++] = (uint8_t)(0xC0u | (run - 1u));
+                        run = 0u;
+                    }
 
-                            if (vr >= -2 && vr <= 1 && vg >= -2 && vg <= 1 && vb >= -2 && vb <= 1) {
-                                if (pos + 1u > capacity) {
-                                    return SOL_ERR_OUT_OF_BOUNDS;
+                    {
+                        uint32_t h_idx = sol__qoi_hash(r, g, b, a);
+                        if (index[h_idx] == c) {
+                            if (pos + 1u > capacity) {
+                                return SOL_ERR_OUT_OF_BOUNDS;
+                            }
+                            out_buf[pos++] = (uint8_t)h_idx;
+                        } else {
+                            index[h_idx] = c;
+                            if (a == pa) {
+                                int8_t vr = (int8_t)((int)r - (int)pr);
+                                int8_t vg = (int8_t)((int)g - (int)pg);
+                                int8_t vb = (int8_t)((int)b - (int)pb);
+                                int8_t vrg = (int8_t)(vr - vg);
+                                int8_t vbg = (int8_t)(vb - vg);
+
+                                if (vr >= -2 && vr <= 1 && vg >= -2 && vg <= 1 && vb >= -2 &&
+                                    vb <= 1) {
+                                    if (pos + 1u > capacity) {
+                                        return SOL_ERR_OUT_OF_BOUNDS;
+                                    }
+                                    out_buf[pos++] =
+                                        (uint8_t)(0x40u | (((uint8_t)(vr + 2)) << 4) |
+                                                  (((uint8_t)(vg + 2)) << 2) | ((uint8_t)(vb + 2)));
+                                } else if (vrg >= -8 && vrg <= 7 && vg >= -32 && vg <= 31 &&
+                                           vbg >= -8 && vbg <= 7) {
+                                    if (pos + 2u > capacity) {
+                                        return SOL_ERR_OUT_OF_BOUNDS;
+                                    }
+                                    out_buf[pos++] = (uint8_t)(0x80u | (uint8_t)(vg + 32));
+                                    out_buf[pos++] = (uint8_t)((((uint8_t)(vrg + 8)) << 4) |
+                                                               ((uint8_t)(vbg + 8)));
+                                } else {
+                                    if (pos + 4u > capacity) {
+                                        return SOL_ERR_OUT_OF_BOUNDS;
+                                    }
+                                    out_buf[pos++] = 0xFEu;
+                                    out_buf[pos++] = r;
+                                    out_buf[pos++] = g;
+                                    out_buf[pos++] = b;
                                 }
-                                out_buf[pos++] =
-                                    (uint8_t)(0x40u | (((uint8_t)(vr + 2)) << 4) |
-                                              (((uint8_t)(vg + 2)) << 2) | ((uint8_t)(vb + 2)));
-                            } else if (vrg >= -8 && vrg <= 7 && vg >= -32 && vg <= 31 &&
-                                       vbg >= -8 && vbg <= 7) {
-                                if (pos + 2u > capacity) {
-                                    return SOL_ERR_OUT_OF_BOUNDS;
-                                }
-                                out_buf[pos++] = (uint8_t)(0x80u | (uint8_t)(vg + 32));
-                                out_buf[pos++] =
-                                    (uint8_t)((((uint8_t)(vrg + 8)) << 4) | ((uint8_t)(vbg + 8)));
                             } else {
-                                if (pos + 4u > capacity) {
+                                if (pos + 5u > capacity) {
                                     return SOL_ERR_OUT_OF_BOUNDS;
                                 }
-                                out_buf[pos++] = 0xFEu;
+                                out_buf[pos++] = 0xFFu;
                                 out_buf[pos++] = r;
                                 out_buf[pos++] = g;
                                 out_buf[pos++] = b;
+                                out_buf[pos++] = a;
                             }
-                        } else {
-                            if (pos + 5u > capacity) {
-                                return SOL_ERR_OUT_OF_BOUNDS;
-                            }
-                            out_buf[pos++] = 0xFFu;
-                            out_buf[pos++] = r;
-                            out_buf[pos++] = g;
-                            out_buf[pos++] = b;
-                            out_buf[pos++] = a;
                         }
                     }
                 }
+                pr = r;
+                pg = g;
+                pb = b;
+                pa = a;
             }
-            pr = r;
-            pg = g;
-            pb = b;
-            pa = a;
         }
-    }
 
-    if (pos + 8u > capacity) {
-        return SOL_ERR_OUT_OF_BOUNDS;
-    }
-    SOL_MEMSET(out_buf + pos, 0, 7u);
-    out_buf[pos + 7u] = 1u;
-    pos += 8u;
+        if (pos + 8u > capacity) {
+            return SOL_ERR_OUT_OF_BOUNDS;
+        }
+        SOL_MEMSET(out_buf + pos, 0, 7u);
+        out_buf[pos + 7u] = 1u;
+        pos += 8u;
 
-    if (out_written != NULL) {
-        *out_written = pos;
+        if (out_written != NULL) {
+            *out_written = pos;
+        }
+        return SOL_OK;
     }
-    return SOL_OK;
 }
 
 sol_status_t sol_image_load_mem(sol_image_t *img, const uint8_t *data, size_t size,
@@ -7583,7 +7593,7 @@ SOL_PRIVATE bool sol__inflate_codes(sol__bs_t *bs, const sol__huff_t *lit_h,
             size_t dist;
             size_t k;
 
-            if (l_idx < 0 || l_idx >= 29) {
+            if (l_idx >= 29) {
                 return false;
             }
             if (k_len_ext[l_idx] > 0u && !sol__bs_bits(bs, (int)k_len_ext[l_idx], &l_ext)) {
@@ -7713,7 +7723,7 @@ SOL_PRIVATE bool sol__zlib_inflate(const uint8_t *src, size_t src_len, uint8_t *
             n_lit = hlit + 257u;
             n_dist = hdist + 1u;
             hclen += 4u;
-            if (n_lit > 286u || n_dist > 30u || hclen > 19u) {
+            if (n_lit > 288u || n_dist > 32u || hclen > 19u) {
                 return false;
             }
 
@@ -7731,6 +7741,7 @@ SOL_PRIVATE bool sol__zlib_inflate(const uint8_t *src, size_t src_len, uint8_t *
 
             total_codes = n_lit + n_dist;
             i = 0u;
+            SOL_MEMSET(lens, 0, sizeof(lens));
             while (i < total_codes) {
                 int sym = 0;
                 uint32_t rep = 0u;

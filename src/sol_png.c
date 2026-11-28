@@ -173,7 +173,7 @@ SOL_PRIVATE bool sol__inflate_codes(sol__bs_t *bs, const sol__huff_t *lit_h,
             size_t dist;
             size_t k;
 
-            if (l_idx < 0 || l_idx >= 29) {
+            if (l_idx >= 29) {
                 return false;
             }
             if (k_len_ext[l_idx] > 0u && !sol__bs_bits(bs, (int)k_len_ext[l_idx], &l_ext)) {
@@ -303,7 +303,7 @@ SOL_PRIVATE bool sol__zlib_inflate(const uint8_t *src, size_t src_len, uint8_t *
             n_lit = hlit + 257u;
             n_dist = hdist + 1u;
             hclen += 4u;
-            if (n_lit > 286u || n_dist > 30u || hclen > 19u) {
+            if (n_lit > 288u || n_dist > 32u || hclen > 19u) {
                 return false;
             }
 
@@ -321,6 +321,7 @@ SOL_PRIVATE bool sol__zlib_inflate(const uint8_t *src, size_t src_len, uint8_t *
 
             total_codes = n_lit + n_dist;
             i = 0u;
+            SOL_MEMSET(lens, 0, sizeof(lens));
             while (i < total_codes) {
                 int sym = 0;
                 uint32_t rep = 0u;

@@ -102,19 +102,19 @@ Status legend:
 
 ## Phase 4: Surface Blitting, Transforms & Image Codecs (`sol_blit`, `sol_image`)
 ### 4.1 Blitting & Transformations
-- [ ] `sol_blit` / `sol_blit_rect`: fast clipped 1:1 copy and `SRC_OVER` alpha-blended blit between surfaces
-- [ ] `sol_blit_tinted`: multiply source texture pixels by a tint/opacity color (essential for monochrome SVG/alpha UI icons!)
-- [ ] `sol_blit_9slice`: 9-patch / 9-slice stretching for crisp scalable UI panels, window borders, and buttons without corner distortion
-- [ ] `sol_blit_scaled`: nearest-neighbor AND bilinear-filtered scaling (`sol_blit_scaled_bilinear`)
-- [ ] `sol_blit_transformed`: 2x3 affine matrix blit (rotation, scaling, shear) with clipping and bilinear filtering
-- [ ] `sol_surface_flip_h`, `sol_surface_flip_v`, `sol_surface_rotate_90`
+- [x] `sol_blit` / `sol_blit_rect`: fast clipped 1:1 copy and `SRC_OVER` alpha-blended blit between surfaces
+- [x] `sol_blit_tinted`: multiply source texture pixels by a tint/opacity color (essential for monochrome SVG/alpha UI icons!)
+- [x] `sol_blit_9slice`: 9-patch / 9-slice stretching for crisp scalable UI panels, window borders, and buttons without corner distortion
+- [x] `sol_blit_scaled`: nearest-neighbor AND bilinear-filtered scaling (`sol_blit_scaled_bilinear`)
+- [x] `sol_blit_transformed`: 2x3 affine matrix blit (rotation, scaling, shear) with clipping and bilinear filtering
+- [x] `sol_surface_flip_h`, `sol_surface_flip_v`, `sol_surface_rotate_90`
 
 ### 4.2 Zero-Dependency Image Decoders & Encoders (Optional compile-time modules)
-- [ ] **PPM / PGM / PBM** (`P3`, `P5`, `P6`) loader & writer (built-in for tests and instant debugging)
-- [ ] **BMP** (24-bit & 32-bit uncompressed, top-down/bottom-up) loader & writer
-- [ ] **TGA** (uncompressed & RLE, 24/32-bit) loader & writer
-- [ ] **QOI** (Quite OK Image — ultra-fast lossless RGBA encoder/decoder in ~200 lines of C)
-- [ ] **PNG** (pure C99 RFC 1950/1951 DEFLATE/INFLATE + PNG chunk parser + CRC32 + filter reconstruction `None`/`Sub`/`Up`/`Avg`/`Paeth` + optional zlib encoder) — rigorously fuzzed against malformed chunks!
+- [x] **PPM / PGM / PBM** (`P3`, `P5`, `P6`) loader & writer (built-in for tests and instant debugging)
+- [x] **BMP** (24-bit & 32-bit uncompressed, top-down/bottom-up) loader & writer
+- [x] **TGA** (uncompressed & RLE, 24/32-bit) loader & writer
+- [x] **QOI** (Quite OK Image — ultra-fast lossless RGBA encoder/decoder in ~200 lines of C)
+- [x] **PNG** (pure C99 RFC 1950/1951 DEFLATE/INFLATE + PNG chunk parser + CRC32 + filter reconstruction `None`/`Sub`/`Up`/`Avg`/`Paeth` + optional zlib encoder) — rigorously fuzzed against malformed chunks!
 
 ---
 
