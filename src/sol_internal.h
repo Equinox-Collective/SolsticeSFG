@@ -205,4 +205,10 @@ static inline int32_t sol__sdf_rounded_box_fp8(int32_t px, int32_t py, int32_t b
 int32_t sol__sin_deg_fp16(int32_t deg);
 int32_t sol__cos_deg_fp16(int32_t deg);
 
+#define SOL_IMG_MAX_DIM 16384
+
+uint32_t *sol__img_alloc_pixels(sol_image_t *img, int32_t w, int32_t h, sol_arena_t *arena);
+void *sol__tmp_alloc(size_t size, sol_arena_t *arena);
+void sol__tmp_free(void *ptr, sol_arena_t *arena);
+
 #endif /* SOL_INTERNAL_H */

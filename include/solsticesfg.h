@@ -531,6 +531,60 @@ SOL_API void sol_surface_flip_v(sol_surface_t *surf);
 SOL_API sol_status_t sol_surface_rotate_90(sol_surface_t *dst, const sol_surface_t *src,
                                            int32_t cw_turns);
 
+/* ============================================================================
+ * Phase 4.2: Zero-Dependency Image Decoders & Encoders
+ * ============================================================================ */
+
+typedef enum sol_image_format {
+    SOL_IMG_UNKNOWN = 0,
+    SOL_IMG_PPM,
+    SOL_IMG_BMP,
+    SOL_IMG_TGA,
+    SOL_IMG_QOI,
+    SOL_IMG_PNG
+} sol_image_format_t;
+
+typedef struct sol_image {
+    sol_surface_t surface;
+    uint32_t *pixels;
+    bool owns_memory;
+} sol_image_t;
+
+SOL_API void sol_image_destroy(sol_image_t *img);
+SOL_API sol_image_format_t sol_image_detect(const uint8_t *data, size_t size);
+
+/* In-Memory Decoders (pass arena != NULL for freestanding/zero-heap, or NULL for SOL_MALLOC) */
+SOL_API sol_status_t sol_image_load_mem(sol_image_t *img, const uint8_t *data, size_t size,
+                                        sol_arena_t *arena);
+SOL_API sol_status_t sol_image_load_ppm_mem(sol_image_t *img, const uint8_t *data, size_t size,
+                                            sol_arena_t *arena);
+SOL_API sol_status_t sol_image_load_bmp_mem(sol_image_t *img, const uint8_t *data, size_t size,
+                                            sol_arena_t *arena);
+SOL_API sol_status_t sol_image_load_tga_mem(sol_image_t *img, const uint8_t *data, size_t size,
+                                            sol_arena_t *arena);
+SOL_API sol_status_t sol_image_load_qoi_mem(sol_image_t *img, const uint8_t *data, size_t size,
+                                            sol_arena_t *arena);
+SOL_API sol_status_t sol_image_load_png_mem(sol_image_t *img, const uint8_t *data, size_t size,
+                                            sol_arena_t *arena);
+
+/* In-Memory Encoders (pass out_buf == NULL to query required buffer size) */
+SOL_API sol_status_t sol_image_encode_ppm(const sol_surface_t *surf, uint8_t *out_buf,
+                                          size_t capacity, size_t *out_written);
+SOL_API sol_status_t sol_image_encode_bmp(const sol_surface_t *surf, uint8_t *out_buf,
+                                          size_t capacity, size_t *out_written);
+SOL_API sol_status_t sol_image_encode_tga(const sol_surface_t *surf, uint8_t *out_buf,
+                                          size_t capacity, size_t *out_written);
+SOL_API sol_status_t sol_image_encode_qoi(const sol_surface_t *surf, uint8_t *out_buf,
+                                          size_t capacity, size_t *out_written);
+SOL_API sol_status_t sol_image_encode_png(const sol_surface_t *surf, uint8_t *out_buf,
+                                          size_t capacity, size_t *out_written);
+
+#if !defined(SOL_FREESTANDING) && !defined(SOL_NO_STDIO)
+SOL_API sol_status_t sol_image_load_file(sol_image_t *img, const char *path, sol_arena_t *arena);
+SOL_API sol_status_t sol_image_save_file(const sol_surface_t *surf, const char *path,
+                                         sol_image_format_t fmt);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
